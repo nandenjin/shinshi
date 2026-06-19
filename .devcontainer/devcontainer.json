@@ -6,7 +6,8 @@
       "extensions": [
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "Vue.volar"
+        "Vue.volar",
+        "github.vscode-github-actions"
       ]
     }
   },
