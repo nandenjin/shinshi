@@ -5,6 +5,9 @@
   "main": "index.js",
   "scripts": {
     "postinstall": "simple-git-hooks",
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
     "format": "prettier --write .",
     "lint": "eslint .",
     "lintfix": "eslint --fix ."
@@ -15,13 +18,19 @@
   "type": "module",
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@types/node": "^25.9.3",
+    "@types/three": "^0.184.1",
+    "@vitejs/plugin-vue": "^6.0.7",
     "eslint": "10.5.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-vue": "10.9.2",
     "lint-staged": "17.0.7",
     "prettier": "3.8.4",
     "simple-git-hooks": "2.13.1",
-    "typescript-eslint": "8.61.1"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "8.61.1",
+    "vite": "^8.0.16",
+    "vue-tsc": "^3.3.5"
   },
   "lint-staged": {
     "*.{js,ts,vue}": [
@@ -34,5 +43,12 @@
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
+  },
+  "private": true,
+  "dependencies": {
+    "three": "^0.184.0",
+    "three-bvh-csg": "^0.0.18",
+    "three-mesh-bvh": "^0.9.10",
+    "vue": "^3.5.38"
   }
 }
