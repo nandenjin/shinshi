@@ -1,0 +1,14 @@
+{
+  "name": "Node.js & TypeScript",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:4-24-trixie",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Vue.volar"
+      ]
+    }
+  },
+  "postCreateCommand": "npm ci"
+}

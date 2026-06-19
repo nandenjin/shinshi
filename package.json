@@ -1,0 +1,38 @@
+{
+  "name": "@nandenjin/shinshi",
+  "version": "0.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "simple-git-hooks",
+    "format": "prettier --write .",
+    "lint": "eslint .",
+    "lintfix": "eslint --fix ."
+  },
+  "keywords": [],
+  "author": "Kazumi Inada a.k.a. Utage <hello@nandenjin.com>",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.5.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-vue": "10.9.2",
+    "lint-staged": "17.0.7",
+    "prettier": "3.8.4",
+    "simple-git-hooks": "2.13.1",
+    "typescript-eslint": "8.61.1"
+  },
+  "lint-staged": {
+    "*.{js,ts,vue}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,yml,html}": [
+      "prettier --write"
+    ]
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  }
+}
