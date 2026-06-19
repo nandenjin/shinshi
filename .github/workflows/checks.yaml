@@ -1,7 +1,7 @@
 name: checks
 on:
   push:
-    branches: [dev]
+    branches: [dev, "renovate/**"]
   pull_request:
 
 jobs:
@@ -44,6 +44,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-slim
+    if: github.ref == 'refs/heads/dev'
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
