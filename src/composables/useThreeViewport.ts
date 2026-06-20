@@ -247,6 +247,7 @@ export function useThreeViewport(
           sourceMesh = new Mesh(geo, _matSource);
           scene.add(sourceMesh);
           fitCameraToObject(sourceMesh);
+          fitCutPlaneToObject(sourceMesh);
         }
       },
     );
@@ -396,6 +397,22 @@ export function useThreeViewport(
     camera.far = dist * 2 + radius * 4;
     camera.updateProjectionMatrix();
     controls.update();
+  }
+
+  /**
+   * Update the cutting-plane helper and section-mode clipping plane to match the object's bounding sphere.p
+   * @param object
+   */
+  function fitCutPlaneToObject(object: Object3D): void {
+    const box = new Box3().setFromObject(object);
+    const sphere = new Sphere();
+    box.getBoundingSphere(sphere);
+
+    // Set size of the plane helper to match the bounding sphere diameter
+    if (planeHelper) {
+      planeHelper.size = sphere.radius * 2;
+      planeHelper.updateMatrixWorld();
+    }
   }
 
   /** Remove and dispose both cut-piece meshes from the scene. */
