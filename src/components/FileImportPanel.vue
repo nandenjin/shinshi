@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { loadModelFromFile } from "../composables/useModelLoader.ts";
+import teapotUrl from "../assets/teapot.stl?url";
+import {
+  loadModelFromFile,
+  loadModelFromUrl,
+} from "../composables/useModelLoader.ts";
 import { moldStore } from "../composables/useMoldStore.ts";
 import {
   loadModel,
@@ -50,12 +54,34 @@ function onDrop(event: DragEvent): void {
   if (file) void processFile(file);
 }
 
+/** Load the bundled teapot sample model. */
+async function loadSample(): Promise<void> {
+  moldStore.status = "loading";
+  moldStore.errorMessage = "";
+  try {
+    const { geometry, fileName, size } = await loadModelFromUrl(
+      teapotUrl,
+      "Utah teapot by Martin Newell.stl",
+    );
+    moldStore.sourceGeometry = geometry;
+    moldStore.fileName = fileName;
+    moldStore.bboxSize = size;
+    moldStore.unit = autoDetectUnit(size);
+    loadModel(geometry, moldStore.params);
+  } catch (err) {
+    moldStore.status = "error";
+    moldStore.errorMessage = err instanceof Error ? err.message : String(err);
+  }
+}
+
 /**
  * Parse the STL file, update the store, and dispatch the model to the Worker.
  */
 async function processFile(file: File): Promise<void> {
   if (!file.name.toLowerCase().endsWith(".stl")) {
-    alert("STL ファイル（.stl）のみ対応しています。");
+    alert(
+      "Unsupported file type. Please select an STL file.\n対応していないファイル形式です。STL ファイルを選択してください。",
+    );
     return;
   }
 
@@ -133,6 +159,12 @@ function onUnitChange(): void {
       <span v-else class="placeholder"
         >STL ファイルをドロップ<br />または クリックして選択</span
       >
+    </div>
+
+    <div v-if="!moldStore.fileName" class="sample">
+      <button type="button" @click="loadSample">
+        代わりにサンプルモデルを使う
+      </button>
     </div>
 
     <!-- Hidden native file input -->
@@ -240,5 +272,28 @@ function onUnitChange(): void {
 .bbox-unit {
   color: var(--color-muted);
   margin-left: 2px;
+}
+
+.sample {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+
+  button {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--color-accent);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+.sample-btn:hover {
+  opacity: 0.75;
 }
 </style>

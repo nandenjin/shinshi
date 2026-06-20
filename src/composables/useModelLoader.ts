@@ -18,6 +18,21 @@ export interface LoadedModel {
 const _loader = new STLLoader();
 
 /**
+ * Load an STL file from a URL, parse it into a {@link BufferGeometry},
+ * and centre it at the world origin.
+ */
+export async function loadModelFromUrl(
+  url: string,
+  fileName: string,
+): Promise<LoadedModel> {
+  const response = await fetch(url);
+  if (!response.ok)
+    throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
+  const buffer = await response.arrayBuffer();
+  return _parseBuffer(buffer, fileName);
+}
+
+/**
  * Load an STL file from a {@link File} object, parse it into a
  * {@link BufferGeometry}, and centre it at the world origin.
  *
@@ -29,23 +44,18 @@ const _loader = new STLLoader();
  */
 export async function loadModelFromFile(file: File): Promise<LoadedModel> {
   const buffer = await file.arrayBuffer();
+  return _parseBuffer(buffer, file.name);
+}
 
-  // STLLoader.parse() is synchronous; it accepts ArrayBuffer directly
+function _parseBuffer(buffer: ArrayBuffer, fileName: string): LoadedModel {
   const geometry = _loader.parse(buffer);
-
-  // Ensure normals and bounding data are up to date
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
-
-  // Translate the geometry so that its bounding-box centre is at the origin
   centreGeometry(geometry);
-
-  // Read the size from the now-updated boundingBox (centreGeometry recomputes it)
   const sizeVec = new Vector3();
   geometry.boundingBox!.getSize(sizeVec);
   const size = { x: sizeVec.x, y: sizeVec.y, z: sizeVec.z };
-
-  return { geometry, fileName: file.name, size };
+  return { geometry, fileName, size };
 }
 
 // ---------------------------------------------------------------------------
