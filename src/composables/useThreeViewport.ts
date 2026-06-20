@@ -20,7 +20,6 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
 import { moldStore } from "./useMoldStore.ts";
-import { scheduleCut } from "./useMoldWorker.ts";
 
 // ---------------------------------------------------------------------------
 // Reusable materials (created once, shared across all mesh instances)
@@ -33,16 +32,7 @@ const _matSource = new MeshStandardMaterial({
   side: DoubleSide,
 });
 
-// --- Normal mode ---
-const _matShell = new MeshStandardMaterial({
-  color: 0x4fc3f7,
-  transparent: true,
-  opacity: 0.6,
-  side: DoubleSide,
-});
-
 // --- Section (clip) mode ---
-// A single THREE.Plane shared between the material and the PlaneHelper sync path.
 const _sectionClipPlane = new Plane(new Vector3(0, 1, 0), 0);
 
 const _matShellSection = new MeshStandardMaterial({
@@ -51,7 +41,7 @@ const _matShellSection = new MeshStandardMaterial({
   clippingPlanes: [_sectionClipPlane],
 });
 
-// --- Interior-highlight mode ---
+// --- Default (merged interior) mode ---
 // materialIndex 0 → outer wall (ghost)
 const _matOuterGhost = new MeshStandardMaterial({
   color: 0x4fc3f7,
@@ -60,13 +50,26 @@ const _matOuterGhost = new MeshStandardMaterial({
   side: DoubleSide,
   depthWrite: false,
 });
-// materialIndex 1 → inner wall (accent)
-const _matInner = new MeshStandardMaterial({
-  color: 0xffb74d,
+
+// materialIndex 1 → inner wall upper half (above cut plane)
+// Clips fragments below the cut plane, leaving only the upper side visible.
+const _innerUpperClipPlane = new Plane(new Vector3(0, 1, 0), 0);
+const _matInnerUpper = new MeshStandardMaterial({
+  color: 0xef9a9a,
   side: DoubleSide,
+  clippingPlanes: [_innerUpperClipPlane],
 });
 
-// --- Cut-piece materials (unchanged) ---
+// materialIndex 2 → inner wall lower half (below cut plane)
+// Clips fragments above the cut plane, leaving only the lower side visible.
+const _innerLowerClipPlane = new Plane(new Vector3(0, -1, 0), 0);
+const _matInnerLower = new MeshStandardMaterial({
+  color: 0xa5d6a7,
+  side: DoubleSide,
+  clippingPlanes: [_innerLowerClipPlane],
+});
+
+// Cut-piece materials (kept for future use but pieces are not shown)
 const _matUpper = new MeshStandardMaterial({
   color: 0xef9a9a,
   side: DoubleSide,
@@ -263,11 +266,14 @@ export function useThreeViewport(
           shellMesh = null;
         }
         if (geo) {
-          // Start with the default normal-mode material; refreshSceneForMode will override.
-          shellMesh = new Mesh(geo, _matShell);
+          shellMesh = new Mesh(geo, [
+            _matOuterGhost,
+            _matInnerUpper,
+            _matInnerLower,
+          ]);
           scene.add(shellMesh);
         }
-        refreshSceneForMode();
+        refreshScene();
       },
     );
 
@@ -284,23 +290,35 @@ export function useThreeViewport(
           lowerMesh = new Mesh(lower, _matLower);
           scene.add(lowerMesh);
         }
-        refreshSceneForMode();
+        refreshScene();
       },
     );
 
-    // Display mode changed → update materials and visibility; sync pieces if needed
+    // showSection changed → update materials and visibility
     watch(
-      () => moldStore.displayMode,
-      (mode, prevMode) => {
-        refreshSceneForMode();
-        // Switching away from section mode: trigger a cut to ensure pieces
-        // reflect the latest plane position (they were skipped while in section mode).
-        if (
-          prevMode === "section" &&
-          mode === "normal" &&
-          moldStore.shellGeometry
-        ) {
-          scheduleCut();
+      () => moldStore.showSection,
+      () => {
+        refreshScene();
+      },
+    );
+
+    // sectionFlipped changed → re-apply section clipping plane direction
+    watch(
+      () => moldStore.sectionFlipped,
+      () => {
+        const spec = moldStore.cutPlane;
+        const n = new Vector3(
+          spec.normal.x,
+          spec.normal.y,
+          spec.normal.z,
+        ).normalize();
+        const d = -n.dot(
+          new Vector3(spec.origin.x, spec.origin.y, spec.origin.z),
+        );
+        if (moldStore.sectionFlipped) {
+          _sectionClipPlane.set(n, d);
+        } else {
+          _sectionClipPlane.set(n.clone().negate(), -d);
         }
       },
     );
@@ -328,7 +346,16 @@ export function useThreeViewport(
         planeHelper.plane.set(n, d);
 
         // Keep the section-mode clipping plane in sync with the gizmo.
-        _sectionClipPlane.set(n, d);
+        // Default (sectionFlipped=false): show the side below the cut plane.
+        if (moldStore.sectionFlipped) {
+          _sectionClipPlane.set(n, d);
+        } else {
+          _sectionClipPlane.set(n.clone().negate(), -d);
+        }
+
+        // Sync inner-wall colour split planes with the cut plane.
+        _innerUpperClipPlane.set(n.clone(), d);
+        _innerLowerClipPlane.set(n.clone().negate(), -d);
       },
       { deep: true, immediate: true },
     );
@@ -431,37 +458,21 @@ export function useThreeViewport(
 
   /**
    * Apply materials and visibility to all scene meshes based on the current
-   * `moldStore.displayMode`.  Call this whenever the mode, the shell, or the
-   * cut pieces change.
-   *
-   * Mode behaviour:
-   *  - `normal`   Shell is semi-transparent; hidden when cut pieces are present.
-   *  - `section`  Shell is rendered with a live clipping plane; pieces hidden.
-   *  - `interior` Shell rendered with ghost outer wall + highlighted inner wall; pieces hidden.
+   * display flags.  Call this whenever showSection, the shell, or cut pieces change.
    */
-  function refreshSceneForMode(): void {
-    const mode = moldStore.displayMode;
-    const hasPieces = !!upperMesh || !!lowerMesh;
-
+  function refreshScene(): void {
     if (shellMesh) {
-      if (mode === "normal") {
-        shellMesh.material = _matShell as Material;
-        // Show the full shell only when no cut pieces are ready.
-        shellMesh.visible = !hasPieces;
-      } else if (mode === "section") {
+      if (moldStore.showSection) {
         shellMesh.material = _matShellSection as Material;
-        shellMesh.visible = true;
       } else {
-        // interior
-        shellMesh.material = [_matOuterGhost, _matInner];
-        shellMesh.visible = true;
+        shellMesh.material = [_matOuterGhost, _matInnerUpper, _matInnerLower];
       }
+      shellMesh.visible = true;
     }
 
-    // Cut pieces are only meaningful (and shown) in normal mode.
-    const showPieces = mode === "normal";
-    if (upperMesh) upperMesh.visible = showPieces;
-    if (lowerMesh) lowerMesh.visible = showPieces;
+    // Cut pieces are not shown; inner-wall colour split conveys the same info.
+    if (upperMesh) upperMesh.visible = false;
+    if (lowerMesh) lowerMesh.visible = false;
   }
 
   /**

@@ -149,9 +149,16 @@ function mergeGeometries(geos: BufferGeometry[]): BufferGeometry {
       for (let i = 0; i < indArr.length; i++) {
         idxOut[iOffset + i] = indArr[i] + vOffset;
       }
-      // Record a draw group so each sub-geometry maps to a material slot.
-      // materialIndex 0 = outer wall, 1 = inner wall.
+      // materialIndex 0 = outer wall
+      // materialIndex 1 = inner wall upper-half colour (clipped below cut plane)
+      // materialIndex 2 = inner wall lower-half colour (clipped above cut plane)
+      // Groups 1 and 2 share the same index range so the inner wall is drawn
+      // twice — once per colour — with each material's clipping plane masking
+      // the opposite half.  No vertex data is duplicated.
       out.addGroup(iOffset, indArr.length, materialIndex);
+      if (materialIndex === 1) {
+        out.addGroup(iOffset, indArr.length, 2);
+      }
       iOffset += indArr.length;
     }
 

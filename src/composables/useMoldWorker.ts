@@ -227,26 +227,13 @@ export function scheduleRegeneration(): void {
   }, 300);
 }
 
-let _cutTimer: ReturnType<typeof setTimeout> | null = null;
-
 /**
- * Schedule a debounced cut-plane update.  Always runs regardless of the
- * `autoRegen` toggle — cutting is cheap and doesn't rebuild the shell.
- *
- * Skipped when `displayMode === 'section'` because that mode previews the
- * cut in the renderer via clipping planes without needing CSG pieces.
- * When switching back to 'normal', call this once to sync pieces to the
- * latest plane position (handled in the display-mode watcher in the viewport).
+ * Schedule a debounced cut-plane update.
+ * Currently a no-op: cut pieces are not shown in the UI; inner-wall colour
+ * split conveys upper/lower information without CSG cuts.
  */
 export function scheduleCut(): void {
-  if (moldStore.displayMode === "section") return;
-  if (_cutTimer) clearTimeout(_cutTimer);
-  _cutTimer = setTimeout(() => {
-    _cutTimer = null;
-    if (moldStore.shellGeometry) {
-      requestCutUpdate(moldStore.cutPlane);
-    }
-  }, 300);
+  return;
 }
 
 // ---------------------------------------------------------------------------

@@ -6,21 +6,17 @@ const showGizmo = defineModel<boolean>("showGizmo", { default: true });
 
 <template>
   <div class="viewport-overlay">
-    <!-- Display mode -->
-    <div class="overlay-section">
-      <label class="label" for="overlay-display-mode">表示</label>
-      <select id="overlay-display-mode" v-model="moldStore.displayMode">
-        <option value="normal">通常</option>
-        <option value="section">断面クリップ</option>
-        <option value="interior">内面ハイライト</option>
-      </select>
-      <p v-if="moldStore.displayMode === 'section'" class="hint">
-        切断面を動かして殻をリアルタイムにスライス。
-      </p>
-      <p v-else-if="moldStore.displayMode === 'interior'" class="hint">
-        外面ゴースト・内面オレンジ強調。
-      </p>
-    </div>
+    <!-- Display options -->
+    <label class="toggle-row">
+      <input v-model="moldStore.showSection" type="checkbox" />
+      <span class="label">断面を表示</span>
+    </label>
+    <template v-if="moldStore.showSection">
+      <label class="toggle-row">
+        <input v-model="moldStore.sectionFlipped" type="checkbox" />
+        <span class="label">反対側の断面を表示</span>
+      </label>
+    </template>
 
     <!-- Gizmo toggle -->
     <label class="toggle-row">
@@ -73,13 +69,6 @@ select {
 select:focus {
   outline: none;
   border-color: var(--color-accent);
-}
-
-.hint {
-  font-size: 0.72rem;
-  color: var(--color-label);
-  margin: 0;
-  line-height: 1.4;
 }
 
 .toggle-row {

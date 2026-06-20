@@ -12,14 +12,6 @@ export type GenerationStatus =
   | "error";
 
 /**
- * Viewport display mode for the shell geometry.
- *  - `normal`   — Default semi-transparent shell; cut pieces shown when available.
- *  - `section`  — Real-time clipping plane reveals interior surfaces and wall thickness.
- *  - `interior` — Outer wall rendered as a ghost; inner wall highlighted in an accent colour.
- */
-export type DisplayMode = "normal" | "section" | "interior";
-
-/**
  * Global application state for the mold generator.
  *
  * This is the single source of truth shared across all composables and
@@ -110,14 +102,17 @@ export const moldStore = reactive({
   isDirty: false as boolean,
 
   // -------------------------------------------------------------------------
-  // Viewport display mode
+  // Viewport display
   // -------------------------------------------------------------------------
 
+  /** When true, the shell is rendered with a live clipping plane. */
+  showSection: false as boolean,
+
   /**
-   * Controls how the shell is visualised in the viewport.
-   * Pure presentation state — does not trigger any worker computation.
+   * When true (and showSection is active), shows the side above the cut plane.
+   * When false (default), shows the side below the cut plane.
    */
-  displayMode: "normal" as DisplayMode,
+  sectionFlipped: false as boolean,
 
   // -------------------------------------------------------------------------
   // Results
