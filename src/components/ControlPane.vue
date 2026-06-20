@@ -19,8 +19,6 @@ import ExportPanel from "./ExportPanel.vue";
 
 <style scoped>
 aside {
-  width: 280px;
-  flex-shrink: 0;
   background: var(--color-pane-bg);
   border-left: 1px solid var(--color-border);
   padding: 16px 14px;

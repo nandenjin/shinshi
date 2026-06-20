@@ -58,8 +58,17 @@ body,
 
 <style scoped>
 .app-layout {
-  display: flex;
+  display: grid;
   height: 100%;
   width: 100%;
+  grid-template-columns: 1fr 280px;
+}
+
+@media screen and(max-width: 768px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr minmax(auto, 50dvh);
+    grid-template-columns: 1fr;
+  }
 }
 </style>
