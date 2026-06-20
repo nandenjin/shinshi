@@ -163,7 +163,8 @@ export function useThreeViewport(
         10000,
       );
     }
-    camera.position.set(100, 50, 150);
+    camera.up.set(0, 0, 1);
+    camera.position.set(100, 150, 50);
 
     // ------------------------------------------------------------------
     // OrbitControls — panning / zooming / rotating the viewport
