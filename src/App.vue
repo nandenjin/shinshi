@@ -64,7 +64,7 @@ body,
   grid-template-columns: 1fr 280px;
 }
 
-@media screen and(max-width: 768px) {
+@media screen and (max-width: 768px) {
   .app-layout {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr minmax(auto, 50dvh);
