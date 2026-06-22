@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { Quaternion, Vector3, type BufferGeometry } from "three";
 import { moldStore } from "../composables/useMoldStore.ts";
 import { downloadStl } from "../composables/useStlDownload.ts";
 
@@ -21,16 +22,46 @@ const baseName = computed(
   () => moldStore.fileName.replace(/\.stl$/i, "") || "mold",
 );
 
+/**
+ * Helper to clone, rotate, and download a single mold piece.
+ * @param piece - The geometry of the piece to export.
+ * @param suffix - Suffix for the file name (e.g. "upper" or "lower").
+ * @param normalMultiplier - Direction of the flat cut face relative to the cut plane normal (-1 for upper, 1 for lower).
+ */
+function downloadPiece(
+  piece: BufferGeometry | null,
+  suffix: string,
+  normalMultiplier: 1 | -1,
+): void {
+  if (!piece) return;
+
+  // Clone the geometry so we don't mutate the instance used for viewport rendering.
+  const geo = piece.clone();
+
+  // The cut plane normal points towards the "upper" half.
+  // Therefore, the flat cut face has an outward normal proportional to normalMultiplier.
+  const n = moldStore.cutPlane.normal;
+  const cutNormal = new Vector3(
+    n.x * normalMultiplier,
+    n.y * normalMultiplier,
+    n.z * normalMultiplier,
+  ).normalize();
+
+  // Rotate the piece so its flat cut face points straight up (+Z).
+  // This ensures the STL is optimally oriented for 3D printing (flat side down or cavity up).
+  const up = new Vector3(0, 0, 1);
+  const q = new Quaternion().setFromUnitVectors(cutNormal, up);
+  geo.applyQuaternion(q);
+
+  downloadStl(geo, `${baseName.value}_${suffix}.stl`);
+}
+
 function downloadUpper(): void {
-  if (moldStore.upperPiece) {
-    downloadStl(moldStore.upperPiece, `${baseName.value}_upper.stl`);
-  }
+  downloadPiece(moldStore.upperPiece, "upper", -1);
 }
 
 function downloadLower(): void {
-  if (moldStore.lowerPiece) {
-    downloadStl(moldStore.lowerPiece, `${baseName.value}_lower.stl`);
-  }
+  downloadPiece(moldStore.lowerPiece, "lower", 1);
 }
 </script>
 
