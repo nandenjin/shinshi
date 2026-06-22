@@ -1,141 +1,206 @@
+/**
+ * @file cutByPlane.ts
+ * Cut the mold shell into two halves using the Manifold library.
+ *
+ * three-bvh-csg cannot produce watertight cut seams — even a trivial sphere ∩
+ * box intersection leaves ~115 boundary-edge cracks (measured empirically).
+ * The Manifold library (manifold-3d, Google's WASM port) guarantees 2-manifold
+ * output for every Boolean operation, so the cut cross-section is always a
+ * clean annular cap with no boundary edges.
+ *
+ * Algorithm
+ * ─────────
+ *   1. Extract outer wall (group materialIndex=0) and inner wall (group
+ *      materialIndex=1) from the merged shell.
+ *   2. Pre-flip the inner wall from CW (inward normals from buildShell) to CCW
+ *      before handing it to Manifold, so the Manifold library always receives
+ *      consistently CCW-wound meshes.
+ *   3. SUBTRACTION: outerManifold − innerManifold → hollow solid.
+ *      toManifold() also volume-checks and re-flips if still negative, providing
+ *      a second safety net.
+ *   4. trimByPlane × 2: split the hollow solid along the cutting plane.
+ */
+
 import {
   BufferGeometry,
-  Box3,
-  Vector3,
-  BoxGeometry,
-  Matrix4,
-  MeshBasicMaterial,
+  BufferAttribute,
+  Float32BufferAttribute,
+  Uint32BufferAttribute,
 } from "three";
-import { Brush, Evaluator, INTERSECTION } from "three-bvh-csg";
 import type { CutPlaneSpec, MoldPieces } from "./types.ts";
-
-// Shared CSG evaluator — stateless, safe to reuse across calls.
-const _evaluator = new Evaluator();
-_evaluator.useGroups = false; // simplify output to a single material group
-// Our geometry has no UV attribute; restrict to the attributes we actually have
-// to prevent GeometryBuilder.initFromGeometry from throwing on the missing 'uv' key.
-_evaluator.attributes = ["position", "normal"];
+import {
+  toManifold,
+  fromManifold,
+  type ManifoldToplevel,
+} from "./manifoldConvert.ts";
 
 /**
- * Cut a shell geometry into two halves along a specified plane.
+ * Cut a mold shell into two halves along a specified plane.
  *
- * Implementation:
- *  For each half we construct a large axis-aligned box that covers the side of
- *  the plane we want to keep, then compute the CSG INTERSECTION of the shell
- *  with that box.  The CSG library automatically caps the cut face with a
- *  planar polygon, producing a watertight half.
- *
- * The box is sized to fully enclose the shell bounding sphere so that the
- * box boundary never appears in the result.
- *
- * @param shell - Watertight mold shell geometry (in world space).
- * @param plane - Cutting plane specification (origin + unit normal).
- * @returns A {@link MoldPieces} pair: `upper` is on the normal side, `lower` is opposite.
+ * @param shell - Merged mold shell from `buildShell` (groups 0/1/2 present).
+ * @param plane - Cutting plane: `origin` is a point on the plane, `normal`
+ *                points toward the "upper" half.
+ * @param wasm  - Initialised ManifoldToplevel (from Module() in the worker).
+ * @returns `{ upper, lower }` — each a watertight 2-manifold BufferGeometry.
  */
 export function cutByPlane(
   shell: BufferGeometry,
   plane: CutPlaneSpec,
+  wasm: ManifoldToplevel,
 ): MoldPieces {
-  // Compute a radius large enough to fully enclose the shell
-  const box = new Box3().setFromBufferAttribute(
-    shell.getAttribute("position") as Parameters<
-      Box3["setFromBufferAttribute"]
-    >[0],
-  );
-  const sizeVec = new Vector3();
-  box.getSize(sizeVec);
-  // Extra factor ensures the box extends well beyond the shell boundary
-  const bigR = sizeVec.length() * 2 + 10;
+  // ── 1. Extract closed-manifold components from the merged shell ───────────
+  const outerGeo = extractGroupGeometry(shell, 0);
+  const innerGeo = extractGroupGeometry(shell, 1);
 
-  const origin = new Vector3(plane.origin.x, plane.origin.y, plane.origin.z);
-  const normal = new Vector3(
-    plane.normal.x,
-    plane.normal.y,
-    plane.normal.z,
-  ).normalize();
+  if (!outerGeo || !innerGeo) {
+    throw new Error(
+      "cutByPlane: shell has no material groups. " +
+        "Expected groups 0 (outer wall) and 1 (inner wall) from buildShell.",
+    );
+  }
 
-  // Wrap the shell in a Brush (Brush extends Mesh)
-  const shellBrush = new Brush(shell, new MeshBasicMaterial());
-  shellBrush.updateMatrixWorld(true);
+  // ── 2. Pre-flip inner wall from CW → CCW ──────────────────────────────────
+  // The inner wall from buildShell has inverted (inward-facing) normals, i.e.
+  // CW winding.  We flip it to CCW here so Manifold always receives positively-
+  // oriented meshes.  toManifold() also volume-checks and re-flips on negative
+  // volume as a second safety net.
+  const innerSolidGeo = flipGeometry(innerGeo);
 
-  const upper = clipToHalfspace(shellBrush, origin, normal, bigR);
-  const lower = clipToHalfspace(
-    shellBrush,
-    origin,
-    normal.clone().negate(),
-    bigR,
-  );
+  // ── 3. SUBTRACTION → hollow solid ─────────────────────────────────────────
+  // All Manifold handles are created inside a try/finally so every WASM heap
+  // allocation is freed on every exit path (including throws).
+  // Nested try-catches wrap each toManifold call to report which wall fails.
+  type MType = ReturnType<typeof toManifold>;
+  let outerM: MType | null = null;
+  let innerM: MType | null = null;
+  let shellSolid: MType | null = null;
+  try {
+    try {
+      outerM = toManifold(wasm, outerGeo);
+    } catch (e) {
+      throw new Error(
+        `cutByPlane: outer wall rejected by Manifold: ${e instanceof Error ? e.message : e}`,
+        { cause: e },
+      );
+    }
+    try {
+      innerM = toManifold(wasm, innerSolidGeo);
+    } catch (e) {
+      throw new Error(
+        `cutByPlane: inner wall rejected by Manifold: ${e instanceof Error ? e.message : e}`,
+        { cause: e },
+      );
+    }
 
-  return { upper, lower };
+    if (outerM.numTri() === 0)
+      throw new Error(
+        "cutByPlane: outer wall Manifold is empty (check input mesh).",
+      );
+    if (innerM.numTri() === 0)
+      throw new Error(
+        "cutByPlane: inner wall Manifold is empty (check input mesh).",
+      );
+
+    shellSolid = outerM.subtract(innerM);
+
+    if (shellSolid.numTri() === 0)
+      throw new Error(
+        "cutByPlane: SUBTRACTION produced empty result. " +
+          "Check that the outer wall fully encloses the inner wall.",
+      );
+
+    // ── 4. trimByPlane × 2 → upper / lower ──────────────────────────────────
+    // trimByPlane keeps the side where dot(point, normal) >= originOffset.
+    const nx = plane.normal.x,
+      ny = plane.normal.y,
+      nz = plane.normal.z;
+    const d = nx * plane.origin.x + ny * plane.origin.y + nz * plane.origin.z;
+
+    const upperM = shellSolid.trimByPlane([nx, ny, nz], d);
+    const lowerM = shellSolid.trimByPlane([-nx, -ny, -nz], -d);
+    try {
+      if (upperM.numTri() === 0 || lowerM.numTri() === 0)
+        throw new Error(
+          "Cut plane does not intersect the model — move the plane onto the object.",
+        );
+      return { upper: fromManifold(upperM), lower: fromManifold(lowerM) };
+    } finally {
+      upperM.delete();
+      lowerM.delete();
+    }
+  } finally {
+    outerM?.delete();
+    innerM?.delete();
+    shellSolid?.delete();
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Internal helper
+// Internal helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Return the CSG INTERSECTION of `shellBrush` with the half-space defined by
- * the plane `(origin, normal)`.  The half-space is represented as a thick box
- * whose near face lies on the cutting plane.
- *
- * @param shellBrush - The mold shell as a Brush.
- * @param origin - A point on the clipping plane.
- * @param normal - Unit normal pointing INTO the half-space to keep.
- * @param radius - Half-length of the clipping box; must exceed the mesh extent.
+ * Extract the sub-geometry for the first group with the given materialIndex.
+ * Returns null if no matching group exists.
  */
-function clipToHalfspace(
-  shellBrush: Brush,
-  origin: Vector3,
-  normal: Vector3,
-  radius: number,
-): BufferGeometry {
-  // The clipping box extends from 0 to radius along local +Z.
-  // The local -Z face (at z = -radius/2) will be placed on the cutting plane.
-  const boxGeo = new BoxGeometry(radius * 2, radius * 2, radius);
-  const clipBrush = new Brush(boxGeo, new MeshBasicMaterial());
+function extractGroupGeometry(
+  merged: BufferGeometry,
+  materialIndex: number,
+): BufferGeometry | null {
+  const group = merged.groups.find((g) => g.materialIndex === materialIndex);
+  if (!group) return null;
 
-  // Build a combined matrix: first rotate so local +Z → normal, then
-  // translate the box centre to (origin + normal * radius/2) so that the
-  // near face of the box sits exactly on the plane.
-  const rotMatrix = rotationToNormal(normal);
-  const centre = origin.clone().addScaledVector(normal, radius * 0.5);
-  const translateMatrix = new Matrix4().makeTranslation(
-    centre.x,
-    centre.y,
-    centre.z,
-  );
+  const allPos = merged.getAttribute("position").array as Float32Array;
+  const allNorm = merged.getAttribute("normal").array as Float32Array;
+  const allIdx = merged.getIndex()!.array as Uint32Array;
 
-  clipBrush.matrix.copy(translateMatrix.multiply(rotMatrix));
-  clipBrush.matrixAutoUpdate = false;
-  clipBrush.updateMatrixWorld(true);
+  const { start, count } = group;
 
-  // Perform INTERSECTION: keep only what is inside both meshes
-  const result = new Brush();
-  _evaluator.evaluate(shellBrush, clipBrush, INTERSECTION, result);
+  // Remap vertex indices for this group into a compact range.
+  const vertRemap = new Int32Array(allPos.length / 3).fill(-1);
+  let newVertCount = 0;
+  for (let i = start; i < start + count; i++) {
+    const v = allIdx[i];
+    if (vertRemap[v] === -1) vertRemap[v] = newVertCount++;
+  }
 
-  result.geometry.computeVertexNormals();
-  return result.geometry;
+  const newPos = new Float32Array(newVertCount * 3);
+  const newNorm = new Float32Array(newVertCount * 3);
+  for (let v = 0; v < allPos.length / 3; v++) {
+    const nv = vertRemap[v];
+    if (nv === -1) continue;
+    newPos[nv * 3] = allPos[v * 3];
+    newPos[nv * 3 + 1] = allPos[v * 3 + 1];
+    newPos[nv * 3 + 2] = allPos[v * 3 + 2];
+    newNorm[nv * 3] = allNorm[v * 3];
+    newNorm[nv * 3 + 1] = allNorm[v * 3 + 1];
+    newNorm[nv * 3 + 2] = allNorm[v * 3 + 2];
+  }
+
+  const newIdx = new Uint32Array(count);
+  for (let i = 0; i < count; i++) newIdx[i] = vertRemap[allIdx[start + i]];
+
+  const geo = new BufferGeometry();
+  geo.setAttribute("position", new Float32BufferAttribute(newPos, 3));
+  geo.setAttribute("normal", new Float32BufferAttribute(newNorm, 3));
+  geo.setIndex(new Uint32BufferAttribute(newIdx, 1));
+  return geo;
 }
 
 /**
- * Build a rotation Matrix4 that rotates the vector (0,0,1) to align with `target`.
- * Uses the Rodrigues rotation formula for numerical stability.
+ * Return a new geometry with triangle winding reversed (CW ↔ CCW).
+ * Does not mutate the input.
  */
-function rotationToNormal(target: Vector3): Matrix4 {
-  const from = new Vector3(0, 0, 1);
-  const dot = from.dot(target);
-
-  if (dot > 0.9999) {
-    // Already aligned
-    return new Matrix4();
+function flipGeometry(geo: BufferGeometry): BufferGeometry {
+  const srcIdx = geo.getIndex()!.array as Uint32Array;
+  const flipped = new Uint32Array(srcIdx.length);
+  for (let i = 0; i < srcIdx.length; i += 3) {
+    flipped[i] = srcIdx[i];
+    flipped[i + 1] = srcIdx[i + 2];
+    flipped[i + 2] = srcIdx[i + 1];
   }
-
-  if (dot < -0.9999) {
-    // Opposite direction — rotate 180° around X
-    return new Matrix4().makeRotationX(Math.PI);
-  }
-
-  const axis = new Vector3().crossVectors(from, target).normalize();
-  const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
-  return new Matrix4().makeRotationAxis(axis, angle);
+  const out = geo.clone();
+  out.setIndex(new BufferAttribute(flipped, 1));
+  out.computeVertexNormals();
+  return out;
 }

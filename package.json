@@ -10,7 +10,11 @@
     "preview": "vite preview",
     "format": "prettier --write .",
     "lint": "eslint .",
-    "lintfix": "eslint --fix ."
+    "lintfix": "eslint --fix .",
+    "typecheck": "run-p typecheck:*",
+    "typecheck:app": "tsc --project tsconfig.app.json --noEmit",
+    "typecheck:worker": "tsc --project tsconfig.worker.json --noEmit",
+    "typecheck:node": "tsc --project tsconfig.node.json --noEmit"
   },
   "keywords": [],
   "author": "Kazumi Inada a.k.a. Utage <hello@nandenjin.com>",
@@ -25,6 +29,7 @@
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-vue": "10.9.2",
     "lint-staged": "17.0.7",
+    "npm-run-all2": "8.0.4",
     "prettier": "3.8.4",
     "simple-git-hooks": "2.13.1",
     "typescript": "6.0.3",
@@ -46,6 +51,7 @@
   },
   "private": true,
   "dependencies": {
+    "manifold-3d": "3.5.1",
     "three": "0.184.0",
     "three-bvh-csg": "0.0.18",
     "three-mesh-bvh": "0.9.10",

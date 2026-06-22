@@ -4,27 +4,35 @@ import {
   Float32BufferAttribute,
   Uint32BufferAttribute,
 } from "three";
+import { buildOffsetSurface } from "./offsetSurface.ts";
+import type { ManifoldToplevel } from "./manifoldConvert.ts";
 
 /**
- * Build the mold shell geometry from the source mesh using vertex-normal extrusion.
+ * Build the mold shell geometry from the source mesh.
  *
  * The shell consists of two surfaces:
- *  - **Outer wall**: source geometry with each vertex displaced outward by `thickness`
- *    along its vertex normal — full topology and surface detail preserved.
+ *  - **Outer wall**: a closed offset surface at distance `thickness` from the
+ *    source mesh, computed via signed-distance field + Manifold.levelSet (marching
+ *    tetrahedra).  Guaranteed 2-manifold; robust against self-intersections.
  *  - **Inner wall**: source geometry with face normals flipped inward.
  *
  * @param sourceGeometry - Original source mesh (indexed, with vertex normals).
  * @param thickness - Shell wall thickness in world units.
+ * @param wasm - Initialised ManifoldToplevel for levelSet extraction.
  * @param onProgress - Optional progress callback.
  * @returns A single BufferGeometry representing the closed mold shell.
  */
 export function buildShell(
   sourceGeometry: BufferGeometry,
   thickness: number,
+  wasm: ManifoldToplevel,
   onProgress?: (value: number, label: string) => void,
 ): BufferGeometry {
   onProgress?.(0, "Building outer wall…");
-  const outerGeo = buildOuterWall(sourceGeometry, thickness);
+  // Outer wall progress is remapped from [0,1] → [0,0.5] of the overall shell build.
+  const outerGeo = buildOuterWall(sourceGeometry, thickness, wasm, (v, label) =>
+    onProgress?.(v * 0.5, label),
+  );
 
   onProgress?.(0.5, "Preparing inner wall…");
   const flippedInner = prepareInnerWall(sourceGeometry);
@@ -37,34 +45,24 @@ export function buildShell(
 }
 
 // ---------------------------------------------------------------------------
-// Outer-wall construction via vertex-normal extrusion
+// Outer-wall construction via SDF + Marching Cubes
 // ---------------------------------------------------------------------------
 
 /**
- * Displace every vertex of `geo` outward along its vertex normal by `thickness`.
- * Triangle connectivity and winding order are preserved, so normals remain outward-facing.
+ * Build the outer offset surface at distance `thickness` from `geo`.
+ *
+ * Delegates to {@link buildOffsetSurface}, which samples a signed-distance
+ * field via BVH closest-point queries and extracts the isosurface using
+ * Manifold.levelSet (marching tetrahedra).  Guaranteed 2-manifold output;
+ * robust at any offset distance.
  */
 function buildOuterWall(
   geo: BufferGeometry,
   thickness: number,
+  wasm: ManifoldToplevel,
+  onProgress?: (value: number, label: string) => void,
 ): BufferGeometry {
-  const result = geo.clone();
-  result.computeVertexNormals();
-
-  const posAttr = result.getAttribute("position") as BufferAttribute;
-  const normAttr = result.getAttribute("normal") as BufferAttribute;
-  const count = posAttr.count;
-  const newPos = new Float32Array(count * 3);
-
-  for (let i = 0; i < count; i++) {
-    newPos[i * 3] = posAttr.getX(i) + normAttr.getX(i) * thickness;
-    newPos[i * 3 + 1] = posAttr.getY(i) + normAttr.getY(i) * thickness;
-    newPos[i * 3 + 2] = posAttr.getZ(i) + normAttr.getZ(i) * thickness;
-  }
-
-  result.setAttribute("position", new Float32BufferAttribute(newPos, 3));
-  result.computeVertexNormals();
-  return result;
+  return buildOffsetSurface(geo, thickness, wasm, { onProgress });
 }
 
 // ---------------------------------------------------------------------------

@@ -3,16 +3,21 @@
  * Web Worker entry point for heavy geometry computations.
  *
  * Responsibilities:
- *  1. Receive a serialised source model geometry and build its shell.
- *  2. Cut the shell along a specified plane and return two pieces.
- *  3. Cache the computed shell so that changing only the cut plane does not
+ *  1. Initialise the Manifold WASM library (once, asynchronously at startup).
+ *  2. Receive a serialised source model geometry and build its shell.
+ *  3. Cut the shell along a specified plane and return two pieces.
+ *  4. Cache the computed shell so that changing only the cut plane does not
  *     require a full shell rebuild.
  */
 
 import { BufferGeometry, BufferAttribute } from "three";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import ManifoldModule from "manifold-3d";
+// @ts-expect-error — Vite ?url import; no type declaration for the WASM asset
+import wasmUrl from "manifold-3d/manifold.wasm?url";
 import { buildShell } from "./geometry/buildShell.ts";
 import { cutByPlane } from "./geometry/cutByPlane.ts";
+import type { ManifoldToplevel } from "./geometry/manifoldConvert.ts";
 import type {
   WorkerRequest,
   WorkerResponse,
@@ -20,6 +25,20 @@ import type {
   MoldParams,
   CutPlaneSpec,
 } from "./geometry/types.ts";
+
+// ---------------------------------------------------------------------------
+// Manifold WASM — initialised once at Worker startup
+// ---------------------------------------------------------------------------
+
+let _wasm: ManifoldToplevel | null = null;
+
+const _wasmReady: Promise<ManifoldToplevel> = ManifoldModule({
+  locateFile: () => wasmUrl as string,
+}).then((w) => {
+  w.setup();
+  _wasm = w;
+  return w;
+});
 
 // ---------------------------------------------------------------------------
 // Worker-level state (persists across messages within one Worker lifetime)
@@ -38,12 +57,27 @@ let _lastPlane: CutPlaneSpec | null = null;
 let _lastParams: MoldParams | null = null;
 
 // ---------------------------------------------------------------------------
-// Message handler
+// Message handler — messages are processed sequentially, WASM-ready-first
 // ---------------------------------------------------------------------------
 
-self.onmessage = (event: MessageEvent<WorkerRequest>) => {
-  const req = event.data;
+// Sequential promise chain so messages never race and WASM is always ready
+// before the first handler runs.
+let _chain: Promise<void> = Promise.resolve();
 
+self.onmessage = (event: MessageEvent<WorkerRequest>) => {
+  _chain = _chain
+    .then(async () => {
+      await _wasmReady;
+      handleMessage(event.data);
+    })
+    .catch((err) => {
+      // Keep the chain alive after any failure (including WASM load errors)
+      // so that future messages are still processed.
+      sendError(err instanceof Error ? err.message : String(err));
+    });
+};
+
+function handleMessage(req: WorkerRequest): void {
   try {
     switch (req.type) {
       case "setModel": {
@@ -84,7 +118,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         _lastPlane = req.plane;
         if (_cachedShell) {
           sendProgress(0.9, "Cutting shell…");
-          const pieces = cutByPlane(_cachedShell, req.plane);
+          const pieces = cutByPlane(_cachedShell, req.plane, _wasm!);
           sendPieces(pieces.upper, pieces.lower);
         } else if (_cachedSourceGeo && _lastParams) {
           generateAndCutShell(_lastParams.thickness, req.plane);
@@ -97,7 +131,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   } catch (err) {
     sendError(err instanceof Error ? err.message : String(err));
   }
-};
+}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -113,7 +147,7 @@ function generateAndCutShell(
   if (!_cachedSourceGeo) return;
 
   sendProgress(0.1, "Building shell…");
-  _cachedShell = buildShell(_cachedSourceGeo, thickness, (v, label) =>
+  _cachedShell = buildShell(_cachedSourceGeo, thickness, _wasm!, (v, label) =>
     sendProgress(0.1 + v * 0.8, label),
   );
 
@@ -130,7 +164,7 @@ function generateAndCutShell(
 
   if (plane) {
     sendProgress(0.9, "Cutting shell…");
-    const pieces = cutByPlane(_cachedShell, plane);
+    const pieces = cutByPlane(_cachedShell, plane, _wasm!);
     sendPieces(pieces.upper, pieces.lower);
   }
 }
@@ -179,7 +213,7 @@ function serialiseGeometry(geo: BufferGeometry): TransferableGeometry {
     groups: geo.groups.map(({ start, count, materialIndex }) => ({
       start,
       count,
-      materialIndex,
+      materialIndex: materialIndex ?? 0,
     })),
   };
 }
