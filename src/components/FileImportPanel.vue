@@ -15,7 +15,6 @@ import {
   MM_PER_UNIT,
   autoDetectUnit,
 } from "../geometry/units.ts";
-import type { LengthUnit } from "../geometry/units.ts";
 
 /** Whether the user is currently dragging a file over the drop zone. */
 const isDragging = ref(false);
@@ -63,11 +62,12 @@ async function loadSample(): Promise<void> {
       teapotUrl,
       "Utah teapot by Martin Newell.stl",
     );
-    moldStore.sourceGeometry = geometry;
+    moldStore.originalGeometry = geometry;
+    moldStore.originalBboxSize = size;
     moldStore.fileName = fileName;
-    moldStore.bboxSize = size;
     moldStore.unit = autoDetectUnit(size);
-    loadModel(geometry, moldStore.params);
+    moldStore.modelScale = 1;
+    applyScaleAndLoad();
   } catch (err) {
     moldStore.status = "error";
     moldStore.errorMessage = err instanceof Error ? err.message : String(err);
@@ -90,25 +90,45 @@ async function processFile(file: File): Promise<void> {
 
   try {
     const { geometry, fileName, size } = await loadModelFromFile(file);
-    moldStore.sourceGeometry = geometry;
+    moldStore.originalGeometry = geometry;
+    moldStore.originalBboxSize = size;
     moldStore.fileName = fileName;
-    moldStore.bboxSize = size;
-    // Auto-detect the most plausible unit before dispatching to the worker,
-    // so the mm→model-unit thickness conversion uses the correct factor.
     moldStore.unit = autoDetectUnit(size);
-
-    // Immediately kick off shell generation with the current params
-    loadModel(geometry, moldStore.params);
+    moldStore.modelScale = 1;
+    applyScaleAndLoad();
   } catch (err) {
     moldStore.status = "error";
     moldStore.errorMessage = err instanceof Error ? err.message : String(err);
   }
 }
 
-function bestDisplayUnit(mm: number): LengthUnit {
-  if (mm >= 1000) return "m";
-  if (mm >= 10) return "cm";
-  return "mm";
+/**
+ * Apply the current global scale to the original geometry and dispatch
+ * the scaled model to the Worker for shell generation.
+ *
+ * This function preserves the original loaded geometry without destructive
+ * modifications to prevent floating-point drift over multiple scaling operations.
+ */
+function applyScaleAndLoad(): void {
+  if (!moldStore.originalGeometry || !moldStore.originalBboxSize) return;
+
+  const scale = moldStore.modelScale;
+
+  // Clone the geometry to keep the original unmutated
+  const scaledGeometry = moldStore.originalGeometry.clone();
+  scaledGeometry.scale(scale, scale, scale);
+
+  moldStore.sourceGeometry = scaledGeometry;
+
+  // Update the bounding box size to reflect the new scale
+  moldStore.bboxSize = {
+    x: moldStore.originalBboxSize.x * scale,
+    y: moldStore.originalBboxSize.y * scale,
+    z: moldStore.originalBboxSize.z * scale,
+  };
+
+  // Dispatch the newly scaled geometry to the worker
+  loadModel(scaledGeometry, moldStore.params);
 }
 
 const bboxDisplay = computed(() => {
@@ -118,21 +138,44 @@ const bboxDisplay = computed(() => {
   const xMm = s.x * factor;
   const yMm = s.y * factor;
   const zMm = s.z * factor;
-  const displayUnit = bestDisplayUnit(Math.max(xMm, yMm, zMm));
-  const div = MM_PER_UNIT[displayUnit];
   return {
-    x: (xMm / div).toFixed(2),
-    y: (yMm / div).toFixed(2),
-    z: (zMm / div).toFixed(2),
-    unit: displayUnit,
+    x: xMm.toFixed(2),
+    y: yMm.toFixed(2),
+    z: zMm.toFixed(2),
   };
 });
 
-/** Schedule shell regeneration when the unit changes (real-world thickness changes). */
 function onUnitChange(): void {
   if (moldStore.sourceGeometry) {
     scheduleRegeneration();
   }
+}
+
+/**
+ * Calculate and apply a new scale factor when the user manually modifies
+ * one of the bounding box size fields (X, Y, or Z).
+ *
+ * The UI inputs strictly display sizes in millimetres. Therefore, the typed
+ * value must be compared against the original size *converted to mm*.
+ *
+ * @param axis  - The axis that was modified ('x', 'y', or 'z').
+ * @param event - The DOM change/keyup event from the input field.
+ */
+function updateScaleFromAxis(axis: "x" | "y" | "z", event: Event): void {
+  const target = event.target as HTMLInputElement;
+  const newValueMm = parseFloat(target.value);
+  if (isNaN(newValueMm) || newValueMm <= 0 || !moldStore.originalBboxSize)
+    return;
+
+  // Convert the original coordinate-unit size to real-world mm.
+  const originalModelUnits = moldStore.originalBboxSize[axis];
+  const originalMm = originalModelUnits * MM_PER_UNIT[moldStore.unit];
+
+  // Derive the uniform scale factor needed to reach the desired mm size.
+  const newScale = newValueMm / originalMm;
+  moldStore.modelScale = newScale;
+
+  applyScaleAndLoad();
 }
 </script>
 
@@ -176,8 +219,8 @@ function onUnitChange(): void {
       @change="onFileInputChange"
     />
 
-    <!-- Unit selector + bbox size (shown after a model is loaded) -->
-    <template v-if="moldStore.bboxSize">
+    <!-- Unit selector + Scale and size editors (shown after a model is loaded) -->
+    <template v-if="moldStore.bboxSize && moldStore.originalBboxSize">
       <div class="unit-row">
         <label for="unit-select" class="field-label">モデル単位</label>
         <select
@@ -189,13 +232,49 @@ function onUnitChange(): void {
         </select>
       </div>
 
+      <div class="scale-row">
+        <label class="field-label">スケール</label>
+        <span class="scale-value"
+          >{{ (moldStore.modelScale * 100).toFixed(1) }}% ({{
+            moldStore.modelScale.toFixed(3)
+          }}x)</span
+        >
+      </div>
+
       <div v-if="bboxDisplay" class="bbox-display">
-        <span class="bbox-label">サイズ</span>
-        <span class="bbox-values">
-          X = {{ bboxDisplay.x }} &nbsp;Y = {{ bboxDisplay.y }} &nbsp;Z =
-          {{ bboxDisplay.z }}
-          <span class="bbox-unit">{{ bboxDisplay.unit }}</span>
-        </span>
+        <span class="bbox-label">サイズ (mm)</span>
+        <div class="bbox-inputs">
+          <div class="input-group">
+            <label>X</label>
+            <input
+              type="number"
+              step="any"
+              :value="bboxDisplay.x"
+              @change="(e) => updateScaleFromAxis('x', e)"
+              @keyup.enter="(e) => updateScaleFromAxis('x', e)"
+            />
+          </div>
+          <div class="input-group">
+            <label>Y</label>
+            <input
+              type="number"
+              step="any"
+              :value="bboxDisplay.y"
+              @change="(e) => updateScaleFromAxis('y', e)"
+              @keyup.enter="(e) => updateScaleFromAxis('y', e)"
+            />
+          </div>
+          <div class="input-group">
+            <label>Z</label>
+            <input
+              type="number"
+              step="any"
+              :value="bboxDisplay.z"
+              @change="(e) => updateScaleFromAxis('z', e)"
+              @keyup.enter="(e) => updateScaleFromAxis('z', e)"
+            />
+          </div>
+        </div>
       </div>
     </template>
   </section>
@@ -252,26 +331,61 @@ function onUnitChange(): void {
   gap: 8px;
 }
 
+.scale-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scale-value {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
 .bbox-display {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
   font-size: 0.8rem;
 }
 
 .bbox-label {
   color: var(--color-label);
-  flex-shrink: 0;
 }
 
-.bbox-values {
-  color: var(--color-text);
-  font-variant-numeric: tabular-nums;
+.bbox-inputs {
+  display: flex;
+  gap: 8px;
 }
 
-.bbox-unit {
-  color: var(--color-muted);
-  margin-left: 2px;
+.input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+
+  label {
+    color: var(--color-muted);
+    font-size: 0.8rem;
+  }
+
+  input {
+    width: 100%;
+    min-width: 0;
+    padding: 4px;
+    font-size: 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg-input);
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+
+    &:focus {
+      border-color: var(--color-accent);
+      outline: none;
+    }
+  }
 }
 
 .sample {

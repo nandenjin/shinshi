@@ -23,17 +23,26 @@ export const moldStore = reactive({
   // Source model
   // -------------------------------------------------------------------------
 
-  /** The imported model's BufferGeometry, or null if no file has been loaded. */
+  /** The imported model's BufferGeometry, before any scaling. */
+  originalGeometry: null as BufferGeometry | null,
+
+  /** The scaled BufferGeometry (what is displayed and sent to the worker). */
   sourceGeometry: null as BufferGeometry | null,
 
   /** Name of the imported file, used for display purposes. */
   fileName: "" as string,
 
+  /** Bounding-box size of the original model. */
+  originalBboxSize: null as { x: number; y: number; z: number } | null,
+
   /**
-   * Bounding-box size of the imported model in raw model coordinates.
+   * Bounding-box size of the scaled model in raw model coordinates.
    * Null until a model has been loaded.
    */
   bboxSize: null as { x: number; y: number; z: number } | null,
+
+  /** Global scale factor applied to the model. */
+  modelScale: 1 as number,
 
   // -------------------------------------------------------------------------
   // Unit interpretation

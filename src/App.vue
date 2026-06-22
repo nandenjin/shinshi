@@ -54,6 +54,14 @@ body,
   --color-accent: #4fc3f7;
   --color-input-bg: #1e1e2e;
 }
+
+/* Hide spinner of number inputs */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+  -moz-appearance: textfield;
+}
 </style>
 
 <style scoped>
