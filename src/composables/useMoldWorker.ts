@@ -1,6 +1,7 @@
 import { BufferGeometry, BufferAttribute } from "three";
 import { moldStore } from "./useMoldStore.ts";
 import { mmToModelUnits } from "../geometry/units.ts";
+import { i18n } from "../i18n/index.ts";
 import type {
   WorkerRequest,
   WorkerResponse,
@@ -60,14 +61,18 @@ function handleWorkerMessage(event: MessageEvent<WorkerResponse>): void {
       moldStore.lowerPiece = deserialiseGeometry(msg.lower);
       moldStore.status = "ready";
       moldStore.progress = 1;
-      moldStore.progressLabel = "Done";
+      moldStore.progressLabel = "done";
       moldStore.isDirty = false;
       break;
 
-    case "error":
+    case "error": {
       moldStore.status = "error";
-      moldStore.errorMessage = msg.message;
+      const knownProgressErrorKeys = ["noModelLoaded", "noShellAvailable"];
+      moldStore.errorMessage = knownProgressErrorKeys.includes(msg.message)
+        ? i18n.global.t(`progress.${msg.message}`)
+        : msg.message;
       break;
+    }
   }
 }
 
@@ -115,7 +120,7 @@ function toPlaneSpec(plane: CutPlaneSpec): CutPlaneSpec {
  * @param params   - Shell generation parameters.
  */
 export function loadModel(geometry: BufferGeometry, params: MoldParams): void {
-  resetResultState("Starting…");
+  resetResultState("starting");
 
   const transferable = serialiseGeometry(geometry);
   const req: WorkerRequest = {
@@ -156,7 +161,7 @@ export function regenerateShell(): void {
     return;
   }
 
-  resetResultState("Regenerating shell…");
+  resetResultState("regeneratingShell");
 
   const req: WorkerRequest = {
     type: "generateShell",

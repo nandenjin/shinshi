@@ -88,7 +88,7 @@ function handleMessage(req: WorkerRequest): void {
         // position but differ in normal — mergeVertices would leave them
         // unmerged by default. Stripping normals first forces a position-only
         // merge; smooth normals are then recomputed from the welded topology.
-        sendProgress(0.02, "Welding vertices…");
+        sendProgress(0.02, "weldingVertices");
         rawGeo.deleteAttribute("normal");
         const geo = mergeVertices(rawGeo);
         geo.computeVertexNormals();
@@ -104,7 +104,7 @@ function handleMessage(req: WorkerRequest): void {
 
       case "generateShell": {
         if (!_cachedSourceGeo) {
-          sendError("No model loaded. Send a setModel request first.");
+          sendError("noModelLoaded");
           return;
         }
         _lastParams = req.params;
@@ -117,13 +117,13 @@ function handleMessage(req: WorkerRequest): void {
       case "applyCut": {
         _lastPlane = req.plane;
         if (_cachedShell) {
-          sendProgress(0.9, "Cutting shell…");
+          sendProgress(0.9, "cuttingShell");
           const pieces = cutByPlane(_cachedShell, req.plane, _wasm!);
           sendPieces(pieces.upper, pieces.lower);
         } else if (_cachedSourceGeo && _lastParams) {
           generateAndCutShell(_lastParams.thickness, req.plane);
         } else {
-          sendError("No shell available. Generate a shell first.");
+          sendError("noShellAvailable");
         }
         break;
       }
@@ -146,7 +146,7 @@ function generateAndCutShell(
 ): void {
   if (!_cachedSourceGeo) return;
 
-  sendProgress(0.1, "Building shell…");
+  sendProgress(0.1, "buildingShell");
   _cachedShell = buildShell(_cachedSourceGeo, thickness, _wasm!, (v, label) =>
     sendProgress(0.1 + v * 0.8, label),
   );
@@ -163,7 +163,7 @@ function generateAndCutShell(
   ]);
 
   if (plane) {
-    sendProgress(0.9, "Cutting shell…");
+    sendProgress(0.9, "cuttingShell");
     const pieces = cutByPlane(_cachedShell, plane, _wasm!);
     sendPieces(pieces.upper, pieces.lower);
   }

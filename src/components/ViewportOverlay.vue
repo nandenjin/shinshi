@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from "vue-i18n";
 import { moldStore } from "../composables/useMoldStore.ts";
 
 const showGizmo = defineModel<boolean>("showGizmo", { default: true });
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -9,19 +12,21 @@ const showGizmo = defineModel<boolean>("showGizmo", { default: true });
     <!-- Display options -->
     <label class="toggle-row">
       <input v-model="moldStore.showSection" type="checkbox" />
-      <span class="label">断面を表示</span>
+      <span class="label">{{ t("viewportOverlay.showSection") }}</span>
     </label>
     <template v-if="moldStore.showSection">
       <label class="toggle-row">
         <input v-model="moldStore.sectionFlipped" type="checkbox" />
-        <span class="label">反対側の断面を表示</span>
+        <span class="label">{{
+          t("viewportOverlay.showOppositeSection")
+        }}</span>
       </label>
     </template>
 
     <!-- Gizmo toggle -->
     <label class="toggle-row">
       <input v-model="showGizmo" type="checkbox" />
-      <span class="label">ツールを表示</span>
+      <span class="label">{{ t("viewportOverlay.showTools") }}</span>
     </label>
   </div>
 </template>

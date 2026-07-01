@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { moldStore } from "../composables/useMoldStore.ts";
 import { scheduleCut } from "../composables/useMoldWorker.ts";
+
+const { t } = useI18n();
 
 /** Preset: cut along the XZ plane (horizontal, normal = +Y). */
 function presetHorizontal(): void {
@@ -34,11 +37,11 @@ watch(
 
 <template>
   <section class="cut-plane-control">
-    <h2>切断面</h2>
+    <h2>{{ t("cutPlane.heading") }}</h2>
 
     <!-- Axis presets -->
     <div class="presets">
-      <span class="field-label">プリセット</span>
+      <span class="field-label">{{ t("cutPlane.presetLabel") }}</span>
       <div class="preset-buttons">
         <button class="preset-btn" @click="presetHorizontal">X-Z</button>
         <button class="preset-btn" @click="presetSagittal">Y-Z</button>
@@ -48,7 +51,7 @@ watch(
 
     <!-- Origin inputs -->
     <fieldset>
-      <legend class="field-label">原点</legend>
+      <legend class="field-label">{{ t("cutPlane.origin") }}</legend>
       <div class="coord-row">
         <label>X</label>
         <input
@@ -76,7 +79,7 @@ watch(
 
     <!-- Normal inputs -->
     <fieldset>
-      <legend class="field-label">法線</legend>
+      <legend class="field-label">{{ t("cutPlane.normal") }}</legend>
       <div class="coord-row">
         <label>X</label>
         <input

@@ -1,8 +1,19 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { Quaternion, Vector3, type BufferGeometry } from "three";
 import { moldStore } from "../composables/useMoldStore.ts";
 import { downloadStl } from "../composables/useStlDownload.ts";
+
+const { t, te } = useI18n();
+
+/** Translate the worker-provided progress-stage key, falling back gracefully. */
+const progressLabelText = computed(() => {
+  const key = moldStore.progressLabel;
+  if (!key) return "";
+  const fullKey = `progress.${key}`;
+  return te(fullKey) ? t(fullKey) : key;
+});
 
 /** True while the worker is computing. */
 const isGenerating = computed(
@@ -67,7 +78,7 @@ function downloadLower(): void {
 
 <template>
   <section class="export-panel">
-    <h2>エクスポート</h2>
+    <h2>{{ t("exportPanel.heading") }}</h2>
 
     <!-- Progress bar (visible while generating) -->
     <div v-if="isGenerating" class="progress-wrapper">
@@ -75,7 +86,7 @@ function downloadLower(): void {
         class="progress-bar"
         :style="{ width: `${moldStore.progress * 100}%` }"
       />
-      <span class="progress-label">{{ moldStore.progressLabel }}</span>
+      <span class="progress-label">{{ progressLabelText }}</span>
     </div>
 
     <!-- Error message -->
@@ -85,7 +96,7 @@ function downloadLower(): void {
 
     <!-- Stale warning: pieces exist but params have changed -->
     <p v-if="isStale" class="stale-msg">
-      パラメーターが変更されました。再生成してからダウンロードしてください。
+      {{ t("exportPanel.staleWarning") }}
     </p>
 
     <!-- Download buttons (shown only when pieces are ready and not stale) -->
@@ -95,20 +106,20 @@ function downloadLower(): void {
         :disabled="moldStore.isDirty || isGenerating"
         @click="downloadUpper"
       >
-        ↓ 上半分 STL
+        {{ t("exportPanel.downloadUpper") }}
       </button>
       <button
         class="download-btn lower"
         :disabled="moldStore.isDirty || isGenerating"
         @click="downloadLower"
       >
-        ↓ 下半分 STL
+        {{ t("exportPanel.downloadLower") }}
       </button>
     </div>
 
     <!-- Placeholder when no pieces exist yet -->
     <p v-else-if="!isGenerating" class="hint-msg">
-      形状を生成するとここからダウンロードできます。
+      {{ t("exportPanel.hint") }}
     </p>
   </section>
 </template>

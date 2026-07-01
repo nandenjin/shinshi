@@ -28,19 +28,19 @@ export function buildShell(
   wasm: ManifoldToplevel,
   onProgress?: (value: number, label: string) => void,
 ): BufferGeometry {
-  onProgress?.(0, "Building outer wall…");
+  onProgress?.(0, "buildingOuterWall");
   // Outer wall progress is remapped from [0,1] → [0,0.5] of the overall shell build.
   const outerGeo = buildOuterWall(sourceGeometry, thickness, wasm, (v, label) =>
     onProgress?.(v * 0.5, label),
   );
 
-  onProgress?.(0.5, "Preparing inner wall…");
+  onProgress?.(0.5, "preparingInnerWall");
   const flippedInner = prepareInnerWall(sourceGeometry);
 
-  onProgress?.(0.8, "Merging shell halves…");
+  onProgress?.(0.8, "mergingShellHalves");
   const merged = mergeGeometries([outerGeo, flippedInner]);
 
-  onProgress?.(1, "Shell complete");
+  onProgress?.(1, "shellComplete");
   return merged;
 }
 

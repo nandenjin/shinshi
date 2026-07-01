@@ -1,0 +1,58 @@
+{
+  "fileImport": {
+    "heading": "Import Model",
+    "dropZonePlaceholder": "Drop an STL file<br />or click to select",
+    "dropZoneAriaLabel": "Drop an STL file, or click to select",
+    "useSample": "Use a sample model instead",
+    "unitLabel": "Model unit",
+    "scaleLabel": "Scale",
+    "sizeLabel": "Size (mm)",
+    "unsupportedFileType": "Unsupported file type. Please select an STL file."
+  },
+  "thicknessControl": {
+    "heading": "Shell Generation Parameters",
+    "thicknessLabel": "Thickness (mm)",
+    "thicknessHint": "= {value} {unit} (model units)",
+    "autoRegen": "Auto-regenerate on parameter change",
+    "stop": "■ Stop",
+    "regenerate": "Regenerate Shape"
+  },
+  "cutPlane": {
+    "heading": "Cut Plane",
+    "presetLabel": "Preset",
+    "origin": "Origin",
+    "normal": "Normal"
+  },
+  "exportPanel": {
+    "heading": "Export",
+    "staleWarning": "Parameters have changed. Please regenerate before downloading.",
+    "downloadUpper": "↓ Upper Half STL",
+    "downloadLower": "↓ Lower Half STL",
+    "hint": "Once you generate a shape, you can download it here."
+  },
+  "viewportOverlay": {
+    "showSection": "Show section",
+    "showOppositeSection": "Show opposite section",
+    "showTools": "Show tools"
+  },
+  "languageSwitcher": {
+    "label": "Language"
+  },
+  "progress": {
+    "weldingVertices": "Welding vertices…",
+    "buildingShell": "Building shell…",
+    "buildingOuterWall": "Building outer wall…",
+    "preparingInnerWall": "Preparing inner wall…",
+    "mergingShellHalves": "Merging shell halves…",
+    "shellComplete": "Shell complete",
+    "samplingDistanceField": "Sampling distance field…",
+    "extractingOffsetSurface": "Extracting offset surface…",
+    "offsetSurfaceComplete": "Offset surface complete",
+    "cuttingShell": "Cutting shell…",
+    "starting": "Starting…",
+    "regeneratingShell": "Regenerating shell…",
+    "done": "Done",
+    "noModelLoaded": "No model loaded. Send a setModel request first.",
+    "noShellAvailable": "No shell available. Generate a shell first."
+  }
+}

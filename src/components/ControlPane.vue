@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LanguageSwitcher from "./LanguageSwitcher.vue";
 import FileImportPanel from "./FileImportPanel.vue";
 import ThicknessControl from "./ThicknessControl.vue";
 import CutPlaneControl from "./CutPlaneControl.vue";
@@ -7,6 +8,8 @@ import ExportPanel from "./ExportPanel.vue";
 
 <template>
   <aside>
+    <LanguageSwitcher />
+    <hr class="divider" />
     <FileImportPanel />
     <hr class="divider" />
     <ThicknessControl />
