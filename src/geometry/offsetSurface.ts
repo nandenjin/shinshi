@@ -131,7 +131,7 @@ export function buildOffsetSurface(
 
   for (let iz = 0; iz < nz; iz++) {
     if (iz % progressStep === 0) {
-      onProgress?.((iz / nz) * 0.85, "Sampling distance field…");
+      onProgress?.((iz / nz) * 0.85, "samplingDistanceField");
     }
 
     const wz = origin.z + iz * voxelSize;
@@ -181,7 +181,7 @@ export function buildOffsetSurface(
   //
   // We want the surface where field = offset, i.e. -field = -offset,
   // so we pass level = -offset to levelSet.
-  onProgress?.(0.88, "Extracting offset surface…");
+  onProgress?.(0.88, "extractingOffsetSurface");
 
   const nxy = nx * ny;
   const ox = origin.x,
@@ -270,7 +270,7 @@ export function buildOffsetSurface(
   const result = fromManifold(manifold);
   manifold.delete();
 
-  onProgress?.(1.0, "Offset surface complete");
+  onProgress?.(1.0, "offsetSurfaceComplete");
   return result;
 }
 

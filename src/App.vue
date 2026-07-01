@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from "vue";
+import { ref, watch, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 import ViewportCanvas from "./components/ViewportCanvas.vue";
 import ControlPane from "./components/ControlPane.vue";
 import { terminateWorker } from "./composables/useMoldWorker.ts";
@@ -9,6 +10,16 @@ const showGizmo = ref(true);
 
 // Ensure the worker is terminated when the root component is destroyed
 onUnmounted(terminateWorker);
+
+const { locale } = useI18n();
+
+watch(
+  locale,
+  (newLocale) => {
+    document.documentElement.lang = newLocale;
+  },
+  { immediate: true },
+);
 </script>
 
 <template>

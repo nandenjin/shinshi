@@ -1,0 +1,58 @@
+{
+  "fileImport": {
+    "heading": "モデルの取り込み",
+    "dropZonePlaceholder": "STL ファイルをドロップ<br />または クリックして選択",
+    "dropZoneAriaLabel": "STL ファイルをドロップするか、クリックして選択",
+    "useSample": "代わりにサンプルモデルを使う",
+    "unitLabel": "モデル単位",
+    "scaleLabel": "スケール",
+    "sizeLabel": "サイズ (mm)",
+    "unsupportedFileType": "対応していないファイル形式です。STL ファイルを選択してください。"
+  },
+  "thicknessControl": {
+    "heading": "殻の生成パラメーター",
+    "thicknessLabel": "厚み（mm）",
+    "thicknessHint": "= {value} {unit}（モデル単位）",
+    "autoRegen": "パラメーター変更時に自動再生成",
+    "stop": "■ 停止",
+    "regenerate": "形状を再生成"
+  },
+  "cutPlane": {
+    "heading": "切断面",
+    "presetLabel": "プリセット",
+    "origin": "原点",
+    "normal": "法線"
+  },
+  "exportPanel": {
+    "heading": "エクスポート",
+    "staleWarning": "パラメーターが変更されました。再生成してからダウンロードしてください。",
+    "downloadUpper": "↓ 上半分 STL",
+    "downloadLower": "↓ 下半分 STL",
+    "hint": "形状を生成するとここからダウンロードできます。"
+  },
+  "viewportOverlay": {
+    "showSection": "断面を表示",
+    "showOppositeSection": "反対側の断面を表示",
+    "showTools": "ツールを表示"
+  },
+  "languageSwitcher": {
+    "label": "言語"
+  },
+  "progress": {
+    "weldingVertices": "頂点を結合中…",
+    "buildingShell": "殻を生成中…",
+    "buildingOuterWall": "外壁を生成中…",
+    "preparingInnerWall": "内壁を準備中…",
+    "mergingShellHalves": "殻を統合中…",
+    "shellComplete": "殻の生成が完了しました",
+    "samplingDistanceField": "距離場をサンプリング中…",
+    "extractingOffsetSurface": "オフセット面を抽出中…",
+    "offsetSurfaceComplete": "オフセット面の生成が完了しました",
+    "cuttingShell": "殻を切断中…",
+    "starting": "開始しています…",
+    "regeneratingShell": "殻を再生成中…",
+    "done": "完了",
+    "noModelLoaded": "モデルが読み込まれていません。先に setModel リクエストを送信してください。",
+    "noShellAvailable": "殻がありません。先に殻を生成してください。"
+  }
+}

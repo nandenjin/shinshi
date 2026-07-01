@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { moldStore } from "../composables/useMoldStore.ts";
 import {
   regenerateShell,
@@ -7,6 +8,8 @@ import {
   scheduleRegeneration,
 } from "../composables/useMoldWorker.ts";
 import { mmToModelUnits } from "../geometry/units.ts";
+
+const { t } = useI18n();
 
 const isGenerating = computed(() => moldStore.status === "generating");
 
@@ -42,10 +45,12 @@ const thicknessInModelUnits = computed(() =>
 
 <template>
   <section class="thickness-control">
-    <h2>殻の生成パラメーター</h2>
+    <h2>{{ t("thicknessControl.heading") }}</h2>
 
     <div class="field">
-      <label for="thickness-input" class="field-label">厚み（mm）</label>
+      <label for="thickness-input" class="field-label">{{
+        t("thicknessControl.thicknessLabel")
+      }}</label>
       <input
         id="thickness-input"
         v-model.number="moldStore.params.thickness"
@@ -55,14 +60,19 @@ const thicknessInModelUnits = computed(() =>
         @input="onThicknessChange"
       />
       <span v-if="moldStore.bboxSize" class="field-hint">
-        = {{ thicknessInModelUnits }} {{ moldStore.unit }}（モデル単位）
+        {{
+          t("thicknessControl.thicknessHint", {
+            value: thicknessInModelUnits,
+            unit: moldStore.unit,
+          })
+        }}
       </span>
     </div>
 
     <!-- Auto-regen toggle -->
     <label class="toggle-row">
       <input v-model="moldStore.autoRegen" type="checkbox" />
-      <span>パラメーター変更時に自動再生成</span>
+      <span>{{ t("thicknessControl.autoRegen") }}</span>
     </label>
 
     <!-- Action button: Stop (while generating) | Regen (dirty) | disabled (clean) -->
@@ -72,7 +82,11 @@ const thicknessInModelUnits = computed(() =>
       :disabled="!isGenerating && !canRegen"
       @click="onActionClick"
     >
-      {{ isGenerating ? "■ 停止" : "形状を再生成" }}
+      {{
+        isGenerating
+          ? t("thicknessControl.stop")
+          : t("thicknessControl.regenerate")
+      }}
     </button>
   </section>
 </template>

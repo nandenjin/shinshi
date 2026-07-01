@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { useI18n } from "vue-i18n";
 import teapotUrl from "../assets/teapot.stl?url";
 import {
   loadModelFromFile,
@@ -15,6 +16,8 @@ import {
   MM_PER_UNIT,
   autoDetectUnit,
 } from "../geometry/units.ts";
+
+const { t } = useI18n();
 
 /** Whether the user is currently dragging a file over the drop zone. */
 const isDragging = ref(false);
@@ -79,9 +82,7 @@ async function loadSample(): Promise<void> {
  */
 async function processFile(file: File): Promise<void> {
   if (!file.name.toLowerCase().endsWith(".stl")) {
-    alert(
-      "Unsupported file type. Please select an STL file.\n対応していないファイル形式です。STL ファイルを選択してください。",
-    );
+    alert(t("fileImport.unsupportedFileType"));
     return;
   }
 
@@ -181,14 +182,14 @@ function updateScaleFromAxis(axis: "x" | "y" | "z", event: Event): void {
 
 <template>
   <section class="file-import-panel">
-    <h2>モデルの取り込み</h2>
+    <h2>{{ t("fileImport.heading") }}</h2>
 
     <div
       class="drop-zone"
       :class="{ dragging: isDragging }"
       role="button"
       tabindex="0"
-      aria-label="STL ファイルをドロップするか、クリックして選択"
+      :aria-label="t('fileImport.dropZoneAriaLabel')"
       @click="openFilePicker"
       @keydown.enter="openFilePicker"
       @dragenter="onDragEnter"
@@ -199,14 +200,16 @@ function updateScaleFromAxis(axis: "x" | "y" | "z", event: Event): void {
       <span v-if="moldStore.fileName" class="file-name">{{
         moldStore.fileName
       }}</span>
-      <span v-else class="placeholder"
-        >STL ファイルをドロップ<br />または クリックして選択</span
-      >
+      <span
+        v-else
+        class="placeholder"
+        v-html="t('fileImport.dropZonePlaceholder')"
+      />
     </div>
 
     <div v-if="!moldStore.fileName" class="sample">
       <button type="button" @click="loadSample">
-        代わりにサンプルモデルを使う
+        {{ t("fileImport.useSample") }}
       </button>
     </div>
 
@@ -222,7 +225,9 @@ function updateScaleFromAxis(axis: "x" | "y" | "z", event: Event): void {
     <!-- Unit selector + Scale and size editors (shown after a model is loaded) -->
     <template v-if="moldStore.bboxSize && moldStore.originalBboxSize">
       <div class="unit-row">
-        <label for="unit-select" class="field-label">モデル単位</label>
+        <label for="unit-select" class="field-label">{{
+          t("fileImport.unitLabel")
+        }}</label>
         <select
           id="unit-select"
           v-model="moldStore.unit"
@@ -233,7 +238,7 @@ function updateScaleFromAxis(axis: "x" | "y" | "z", event: Event): void {
       </div>
 
       <div class="scale-row">
-        <label class="field-label">スケール</label>
+        <label class="field-label">{{ t("fileImport.scaleLabel") }}</label>
         <span class="scale-value"
           >{{ (moldStore.modelScale * 100).toFixed(1) }}% ({{
             moldStore.modelScale.toFixed(3)
@@ -242,7 +247,7 @@ function updateScaleFromAxis(axis: "x" | "y" | "z", event: Event): void {
       </div>
 
       <div v-if="bboxDisplay" class="bbox-display">
-        <span class="bbox-label">サイズ (mm)</span>
+        <span class="bbox-label">{{ t("fileImport.sizeLabel") }}</span>
         <div class="bbox-inputs">
           <div class="input-group">
             <label>X</label>
