@@ -23,7 +23,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "25.9.5",
-    "@types/three": "0.185.0",
+    "@types/three": "0.185.1",
     "@vitejs/plugin-vue": "6.0.7",
     "eslint": "10.6.0",
     "eslint-config-prettier": "10.1.8",
