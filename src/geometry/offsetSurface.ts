@@ -13,8 +13,8 @@
  * ─────────
  *   1. Build a BVH of the source mesh (MeshBVH from three-mesh-bvh).
  *   2. Lay a uniform voxel grid over the mesh bbox expanded by `offset` + margin.
- *   3. Sample the signed distance at every grid corner via BVH closest-point
- *      queries; the sign is derived from the geometric face normal at the hit.
+ *   3. Sample the field at every grid corner: magnitude via BVH closest-point
+ *      queries, sign via ray-parity (one ray per y/z scanline along +X).
  *   4. Extract the isosurface at level `offset` with Manifold.levelSet(), feeding
  *      it a trilinear-interpolating SDF closure over the precomputed field.
  *   5. Return the resulting indexed, watertight BufferGeometry.
@@ -26,7 +26,13 @@
  *   • `source` has precomputed outward-facing vertex normals.
  */
 
-import { BufferGeometry, Uint32BufferAttribute, Vector3 } from "three";
+import {
+  BufferGeometry,
+  DoubleSide,
+  Ray,
+  Uint32BufferAttribute,
+  Vector3,
+} from "three";
 import { MeshBVH } from "three-mesh-bvh";
 import { fromManifold, type ManifoldToplevel } from "./manifoldConvert.ts";
 
@@ -34,13 +40,7 @@ import { fromManifold, type ManifoldToplevel } from "./manifoldConvert.ts";
 // Module-level reusable vectors (no per-call allocation in the hot loop)
 // ---------------------------------------------------------------------------
 const _queryPt = new Vector3();
-const _dir = new Vector3();
-const _va = new Vector3();
-const _vb = new Vector3();
-const _vc = new Vector3();
-const _e1 = new Vector3();
-const _e2 = new Vector3();
-const _faceN = new Vector3();
+const _ray = new Ray();
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -76,10 +76,6 @@ export function buildOffsetSurface(
 
   // ── 1. Build BVH ──────────────────────────────────────────────────────────
   const bvh = new MeshBVH(geo);
-
-  // Cache index and position attributes for the face-normal helper.
-  const indexArr = geo.getIndex()!.array as Uint32Array;
-  const posAttr = geo.getAttribute("position");
 
   // ── 2. Determine voxel grid dimensions (speed-priority, auto resolution) ──
   geo.computeBoundingBox();
@@ -126,6 +122,19 @@ export function buildOffsetSurface(
   // Reusable HitPointInfo-compatible target object (avoids per-query allocations).
   const hitTarget = { point: new Vector3(), distance: 0, faceIndex: 0 };
 
+  // Sign is determined by ray-parity along +X (one ray per (iy, iz)
+  // scanline), not by the nearest triangle's normal at each grid point: the
+  // nearest-normal heuristic is only *locally* correct and can flip sign
+  // between neighbouring grid points that are far from the surface but
+  // similarly close to two unrelated parts of a complex/concave mesh —
+  // producing spurious "branch" isosurface patches far from the true offset
+  // shell. Ray-parity is a global topological test, so it stays correct
+  // regardless of distance to the surface.
+  //
+  // Merge ray hits closer together than this into a single crossing — shared
+  // edges/vertices are reported once per incident triangle.
+  const mergeEps = Math.max(1e-6, voxelSize * 1e-4);
+
   // Progress: SDF sampling covers 0 → 0.85.
   const progressStep = Math.max(1, Math.floor(nz * 0.05));
 
@@ -140,31 +149,35 @@ export function buildOffsetSurface(
       const wy = origin.y + iy * voxelSize;
       const rowBase = iy * nx + iz * nx * ny;
 
+      // Cast one ray for the whole scanline; every ix sample along it reuses
+      // the same sorted hit list via a monotonic cursor.
+      _ray.origin.set(origin.x, wy, wz);
+      _ray.direction.set(1, 0, 0);
+      // DoubleSide: parity counting needs every crossing (entries *and*
+      // exits) — FrontSide (the default) silently drops exit hits, which
+      // corrupts the odd/even count for any scanline crossing the mesh
+      // more than once.
+      const hits = bvh.raycast(_ray, DoubleSide);
+      hits.sort((a, b) => a.distance - b.distance);
+
+      let h = 0;
+      let parity = 0;
+      let lastCrossingX = -Infinity;
       for (let ix = 0; ix < nx; ix++) {
-        _queryPt.set(origin.x + ix * voxelSize, wy, wz);
-
-        const hit = bvh.closestPointToPoint(_queryPt, hitTarget);
-        if (!hit) {
-          // Should not occur with infinite maxThreshold on a non-empty mesh.
-          field[ix + rowBase] = offset + 1.0;
-          continue;
+        const wx = origin.x + ix * voxelSize;
+        while (h < hits.length && origin.x + hits[h].distance < wx) {
+          const cx = origin.x + hits[h].distance;
+          if (cx - lastCrossingX > mergeEps) {
+            parity ^= 1;
+            lastCrossingX = cx;
+          }
+          h++;
         }
+        const sign = parity === 1 ? -1.0 : 1.0;
 
-        // Compute the geometric face normal of the hit triangle directly from
-        // the index buffer and position attribute — no heap allocation, no UV.
-        const fi = hit.faceIndex * 3;
-        _va.fromBufferAttribute(posAttr, indexArr[fi]);
-        _vb.fromBufferAttribute(posAttr, indexArr[fi + 1]);
-        _vc.fromBufferAttribute(posAttr, indexArr[fi + 2]);
-        _e1.subVectors(_vb, _va);
-        _e2.subVectors(_vc, _va);
-        _faceN.crossVectors(_e1, _e2); // unnormalised; only the sign matters
-
-        // Direction from closest surface point toward query point.
-        _dir.subVectors(_queryPt, hit.point);
-
-        // Positive (outside) when dir is on the same side as the face normal.
-        const sign = _dir.dot(_faceN) >= 0 ? 1.0 : -1.0;
+        _queryPt.set(wx, wy, wz);
+        // Infinite maxThreshold on a non-empty mesh always finds a hit.
+        const hit = bvh.closestPointToPoint(_queryPt, hitTarget)!;
         field[ix + rowBase] = sign * hit.distance;
       }
     }
