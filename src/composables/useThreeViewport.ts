@@ -6,13 +6,18 @@ import {
   DirectionalLight,
   Mesh,
   MeshStandardMaterial,
-  PlaneHelper,
   Plane,
   Vector3,
+  Vector2,
+  Raycaster,
   Color,
   DoubleSide,
   Box3,
   Sphere,
+  LineLoop,
+  LineBasicMaterial,
+  BufferGeometry,
+  Float32BufferAttribute,
   type Object3D,
   type Material,
 } from "three";
@@ -79,6 +84,23 @@ const _matLower = new MeshStandardMaterial({
   side: DoubleSide,
 });
 
+// Unit-radius circle outline (in the local XY plane) used to visualise the
+// cutting plane. Scaled and re-oriented per-instance to match the plane's
+// radius, position and normal — kept as a unit shape so it can be shared.
+const _planeCircleGeometry = new BufferGeometry();
+{
+  const segments = 64;
+  const positions: number[] = [];
+  for (let i = 0; i < segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    positions.push(Math.cos(theta), Math.sin(theta), 0);
+  }
+  _planeCircleGeometry.setAttribute(
+    "position",
+    new Float32BufferAttribute(positions, 3),
+  );
+}
+
 /**
  * Set up and manage a THREE.js viewport inside a canvas element.
  *
@@ -111,8 +133,9 @@ export function useThreeViewport(
   let upperMesh: Mesh | null = null;
   let lowerMesh: Mesh | null = null;
 
-  // Plane helper geometry for the cutting plane visualisation
-  let planeHelper: PlaneHelper | null = null;
+  // Circular outline visualising the cutting plane's extent
+  let planeHelper: LineLoop | null = null;
+  let planeRadius = 100;
 
   // An invisible Object3D whose position and rotation define the cutting plane.
   // TransformControls modifies this object when the user drags the gizmo.
@@ -201,11 +224,79 @@ export function useThreeViewport(
     transformControls.attach(planeProxy);
 
     // ------------------------------------------------------------------
-    // Cutting plane helper (infinite-plane wireframe visualisation)
+    // Cutting plane helper (circular outline visualisation)
     // ------------------------------------------------------------------
     const plane = new Plane(new Vector3(0, 1, 0), 0);
-    planeHelper = new PlaneHelper(plane, 200, 0xffd54f);
+    planeHelper = new LineLoop(
+      _planeCircleGeometry,
+      new LineBasicMaterial({ color: 0xffd54f }),
+    );
+    planeHelper.scale.setScalar(planeRadius);
     scene.add(planeHelper);
+
+    // ------------------------------------------------------------------
+    // Gizmo selection — the gizmo only becomes draggable once the user has
+    // clicked on the cutting plane; clicking anywhere else deselects it.
+    // The precise TransformControls picker is tiny (and its handles are
+    // hidden while unselected), so an unselected click is also accepted
+    // anywhere on the visualised plane, not just on the picker itself.
+    // ------------------------------------------------------------------
+    let gizmoSelected = false;
+    let justSelectedGizmo = false;
+    const selectionRaycaster = new Raycaster();
+
+    // The arrow handles are only shown while the gizmo is selected.
+    function updateGizmoHelperVisibility(): void {
+      transformControls.getHelper().visible = showGizmo.value && gizmoSelected;
+    }
+
+    /** Whether a pointer event lands within the visualised cutting-plane area. */
+    function pointerHitsCutPlane(event: PointerEvent): boolean {
+      if (!planeProxy || !canvas) return false;
+      const rect = canvas.getBoundingClientRect();
+      const ndc = new Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      selectionRaycaster.setFromCamera(ndc, camera);
+      const point = new Vector3();
+      if (!selectionRaycaster.ray.intersectPlane(plane, point)) return false;
+      return point.distanceTo(planeProxy.position) <= planeRadius;
+    }
+
+    // Fires whenever a pointerdown lands on a gizmo handle, right before it
+    // would start a drag.
+    transformControls.addEventListener("mouseDown", () => {
+      if (!gizmoSelected) {
+        // First click only selects the gizmo; cancel the drag this pointer
+        // press would otherwise have started.
+        gizmoSelected = true;
+        justSelectedGizmo = true;
+        transformControls.dragging = false;
+        transformControls.axis = null;
+        updateGizmoHelperVisibility();
+      }
+    });
+
+    // Runs after TransformControls' own pointerdown handling (registered
+    // above), so `axis` already reflects whether this click hit a handle.
+    canvas.addEventListener("pointerdown", (event) => {
+      if (justSelectedGizmo) {
+        justSelectedGizmo = false;
+        return;
+      }
+      if (!gizmoSelected) {
+        if (pointerHitsCutPlane(event)) {
+          gizmoSelected = true;
+          updateGizmoHelperVisibility();
+        }
+        return;
+      }
+      if (transformControls.axis === null) {
+        gizmoSelected = false;
+        updateGizmoHelperVisibility();
+      }
+    });
 
     // ------------------------------------------------------------------
     // Resize handling
@@ -342,9 +433,12 @@ export function useThreeViewport(
         // subsequent translate-gizmo drags read the correct orientation from quaternion.
         planeProxy.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), n);
 
-        // Update the PlaneHelper to reflect the new plane equation
+        // Keep the plane-circle outline centred on and normal to the same point
+        // used for gizmo-selection hit-testing.
+        planeHelper.position.copy(planeProxy.position);
+        planeHelper.quaternion.setFromUnitVectors(new Vector3(0, 0, 1), n);
+
         const d = -n.dot(planeProxy.position); // plane constant: dot(n, x) + d = 0
-        planeHelper.plane.set(n, d);
 
         // Keep the section-mode clipping plane in sync with the gizmo.
         // Default (sectionFlipped=false): show the side below the cut plane.
@@ -362,10 +456,14 @@ export function useThreeViewport(
     );
 
     // Gizmo visibility toggle
-    watch(showGizmo, (visible) => {
-      transformControls.getHelper().visible = visible;
-      if (planeHelper) planeHelper.visible = visible;
-    });
+    watch(
+      showGizmo,
+      (visible) => {
+        updateGizmoHelperVisibility();
+        if (planeHelper) planeHelper.visible = visible;
+      },
+      { immediate: true },
+    );
   });
 
   onUnmounted(() => {
@@ -436,11 +534,10 @@ export function useThreeViewport(
     const sphere = new Sphere();
     box.getBoundingSphere(sphere);
 
-    // Set size of the plane helper to match the bounding sphere diameter
-    if (planeHelper) {
-      planeHelper.size = sphere.radius * 2;
-      planeHelper.updateMatrixWorld();
-    }
+    // Size the plane-circle outline (and its hit-test radius) to match the
+    // bounding sphere radius
+    planeRadius = sphere.radius;
+    if (planeHelper) planeHelper.scale.setScalar(planeRadius);
   }
 
   /** Remove and dispose both cut-piece meshes from the scene. */
