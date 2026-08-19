@@ -5,11 +5,7 @@ import type { LengthUnit } from "../geometry/units.ts";
 
 /** Possible states of the mold generation pipeline. */
 export type GenerationStatus =
-  | "idle"
-  | "loading"
-  | "generating"
-  | "ready"
-  | "error";
+  "idle" | "loading" | "generating" | "ready" | "error";
 
 /**
  * Global application state for the mold generator.
@@ -77,6 +73,12 @@ export const moldStore = reactive({
     origin: { x: 0, y: 0, z: 0 },
     normal: { x: 0, y: 1, z: 0 },
   } as CutPlaneSpec,
+
+  /**
+   * Current mode of the cutting-plane gizmo, mirroring Blender's move/rotate
+   * tools. Switched via the viewport overlay or the G/R keyboard shortcuts.
+   */
+  gizmoMode: "translate" as "translate" | "rotate",
 
   // -------------------------------------------------------------------------
   // Generation state

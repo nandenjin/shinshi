@@ -74,39 +74,11 @@ watch(
       </div>
     </fieldset>
 
-    <!-- Normal inputs -->
-    <fieldset>
-      <legend class="field-label">法線</legend>
-      <div class="coord-row">
-        <label>X</label>
-        <input
-          v-model.number="moldStore.cutPlane.normal.x"
-          type="number"
-          step="0.1"
-          min="-1"
-          max="1"
-          @input="scheduleCut"
-        />
-        <label>Y</label>
-        <input
-          v-model.number="moldStore.cutPlane.normal.y"
-          type="number"
-          step="0.1"
-          min="-1"
-          max="1"
-          @input="scheduleCut"
-        />
-        <label>Z</label>
-        <input
-          v-model.number="moldStore.cutPlane.normal.z"
-          type="number"
-          step="0.1"
-          min="-1"
-          max="1"
-          @input="scheduleCut"
-        />
-      </div>
-    </fieldset>
+    <!-- Normal: set graphically via the viewport gizmo -->
+    <p class="hint">
+      法線はビューポートのギズモをクリックして選択し、回転モード（R
+      キーまたはツール切り替え）でドラッグして指定します。
+    </p>
   </section>
 </template>
 
@@ -154,5 +126,12 @@ watch(
   font-size: 0.75rem;
   color: var(--color-label);
   text-align: right;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-label);
+  line-height: 1.5;
 }
 </style>

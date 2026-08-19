@@ -126,6 +126,7 @@ export function useThreeViewport(
   let transformControls: TransformControls;
   let animationId: number;
   let resizeObserver: ResizeObserver;
+  let gizmoKeydownHandler: ((event: KeyboardEvent) => void) | null = null;
 
   // Live meshes that are swapped out whenever the store changes
   let sourceMesh: Mesh | null = null;
@@ -199,7 +200,7 @@ export function useThreeViewport(
     // TransformControls — gizmo for moving the cutting plane
     // ------------------------------------------------------------------
     transformControls = new TransformControls(camera, canvas);
-    transformControls.setMode("translate");
+    transformControls.setMode(moldStore.gizmoMode);
 
     // When the user drags the gizmo, disable orbit to avoid conflicts
     transformControls.addEventListener("dragging-changed", (event) => {
@@ -297,6 +298,20 @@ export function useThreeViewport(
         updateGizmoHelperVisibility();
       }
     });
+
+    // Blender-style keyboard shortcuts: while the gizmo is selected, G
+    // switches to move (translate) and R switches to rotate.
+    gizmoKeydownHandler = (event: KeyboardEvent) => {
+      if (!gizmoSelected) return;
+      const target = event.target as HTMLElement | null;
+      if (target && /^(input|textarea|select)$/i.test(target.tagName)) return;
+      if (event.key === "g" || event.key === "G") {
+        moldStore.gizmoMode = "translate";
+      } else if (event.key === "r" || event.key === "R") {
+        moldStore.gizmoMode = "rotate";
+      }
+    };
+    window.addEventListener("keydown", gizmoKeydownHandler);
 
     // ------------------------------------------------------------------
     // Resize handling
@@ -464,11 +479,21 @@ export function useThreeViewport(
       },
       { immediate: true },
     );
+
+    // Gizmo mode (translate/rotate) toggle
+    watch(
+      () => moldStore.gizmoMode,
+      (mode) => {
+        transformControls.setMode(mode);
+      },
+    );
   });
 
   onUnmounted(() => {
     cancelAnimationFrame(animationId);
     resizeObserver?.disconnect();
+    if (gizmoKeydownHandler)
+      window.removeEventListener("keydown", gizmoKeydownHandler);
     renderer?.dispose();
     controls?.dispose();
     transformControls?.dispose();

@@ -23,6 +23,30 @@ const showGizmo = defineModel<boolean>("showGizmo", { default: true });
       <input v-model="showGizmo" type="checkbox" />
       <span class="label">ツールを表示</span>
     </label>
+
+    <!-- Gizmo mode (Blender-style: move / rotate) -->
+    <template v-if="showGizmo">
+      <div class="mode-buttons">
+        <button
+          type="button"
+          class="mode-btn"
+          :class="{ active: moldStore.gizmoMode === 'translate' }"
+          title="移動 (G)"
+          @click="moldStore.gizmoMode = 'translate'"
+        >
+          移動
+        </button>
+        <button
+          type="button"
+          class="mode-btn"
+          :class="{ active: moldStore.gizmoMode === 'rotate' }"
+          title="回転 (R)"
+          @click="moldStore.gizmoMode = 'rotate'"
+        >
+          回転
+        </button>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -81,5 +105,33 @@ select:focus {
     accent-color: var(--color-accent);
     cursor: pointer;
   }
+}
+
+.mode-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.mode-btn:hover {
+  border-color: var(--color-accent);
+}
+
+.mode-btn.active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 </style>
