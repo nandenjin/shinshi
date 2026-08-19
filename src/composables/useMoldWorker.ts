@@ -227,13 +227,24 @@ export function scheduleRegeneration(): void {
   }, 300);
 }
 
+let _cutTimer: ReturnType<typeof setTimeout> | null = null;
+
 /**
- * Schedule a debounced cut-plane update.
- * Currently a no-op: cut pieces are not shown in the UI; inner-wall colour
- * split conveys upper/lower information without CSG cuts.
+ * Schedule a debounced cut-plane update against the cached shell.
+ *
+ * The viewport only *previews* the cut plane (gizmo, colour split); the
+ * actual `upperPiece`/`lowerPiece` geometries exported by ExportPanel are
+ * produced by the worker's CSG cut and must be kept in sync whenever the
+ * plane changes, or downloaded STL files will reflect a stale plane.
  */
 export function scheduleCut(): void {
-  return;
+  if (_cutTimer) clearTimeout(_cutTimer);
+  _cutTimer = setTimeout(() => {
+    _cutTimer = null;
+    if (moldStore.shellGeometry) {
+      requestCutUpdate(moldStore.cutPlane);
+    }
+  }, 300);
 }
 
 // ---------------------------------------------------------------------------
