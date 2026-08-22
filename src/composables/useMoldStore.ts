@@ -61,7 +61,7 @@ export const moldStore = reactive({
    * model-unit-converted value (see useMoldWorker.ts).
    */
   params: {
-    thickness: 3,
+    thickness: 1,
   } as MoldParams,
 
   // -------------------------------------------------------------------------
