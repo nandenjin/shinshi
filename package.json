@@ -25,7 +25,7 @@
     "@types/node": "25.9.5",
     "@types/three": "0.185.4",
     "@vitejs/plugin-vue": "6.0.8",
-    "eslint": "10.8.1",
+    "eslint": "10.9.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-vue": "10.10.0",
     "lint-staged": "17.3.0",
