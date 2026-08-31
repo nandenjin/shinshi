@@ -131,6 +131,11 @@ function applyScaleAndLoad(): void {
   loadModel(scaledGeometry, moldStore.params);
 }
 
+/** Whether a model is loaded and its bounding box is known. */
+const hasModel = computed(
+  () => !!moldStore.bboxSize && !!moldStore.originalBboxSize,
+);
+
 const bboxDisplay = computed(() => {
   const s = moldStore.bboxSize;
   if (!s) return null;
@@ -183,105 +188,120 @@ function updateScaleFromAxis(axis: "x" | "y" | "z", event: Event): void {
   <section class="file-import-panel">
     <h2>モデルの取り込み</h2>
 
-    <div
-      class="drop-zone"
-      :class="{ dragging: isDragging }"
-      role="button"
-      tabindex="0"
-      aria-label="STL ファイルをドロップするか、クリックして選択"
-      @click="openFilePicker"
-      @keydown.enter="openFilePicker"
-      @dragenter="onDragEnter"
-      @dragleave="onDragLeave"
-      @dragover="onDragOver"
-      @drop="onDrop"
-    >
-      <span v-if="moldStore.fileName" class="file-name">{{
-        moldStore.fileName
-      }}</span>
-      <span v-else class="placeholder"
-        >STL ファイルをドロップ<br />または クリックして選択</span
+    <!-- Wrapped separately from the unit/size editors below so the
+         onboarding guide's "import" step highlights only the drop zone,
+         not the whole panel. -->
+    <div class="import-controls" data-onboarding="import">
+      <div
+        class="drop-zone"
+        :class="{ dragging: isDragging }"
+        role="button"
+        tabindex="0"
+        aria-label="STL ファイルをドロップするか、クリックして選択"
+        @click="openFilePicker"
+        @keydown.enter="openFilePicker"
+        @dragenter="onDragEnter"
+        @dragleave="onDragLeave"
+        @dragover="onDragOver"
+        @drop="onDrop"
       >
-    </div>
-
-    <div v-if="!moldStore.fileName" class="sample">
-      <button type="button" @click="loadSample">
-        代わりにサンプルモデルを使う
-      </button>
-    </div>
-
-    <!-- Hidden native file input -->
-    <input
-      ref="fileInputRef"
-      type="file"
-      accept=".stl"
-      style="display: none"
-      @change="onFileInputChange"
-    />
-
-    <!-- Unit selector + Scale and size editors (shown after a model is loaded) -->
-    <template v-if="moldStore.bboxSize && moldStore.originalBboxSize">
-      <div class="unit-row">
-        <label for="unit-select" class="field-label">モデル単位</label>
-        <select
-          id="unit-select"
-          v-model="moldStore.unit"
-          @change="onUnitChange"
-        >
-          <option v-for="u in UNIT_OPTIONS" :key="u" :value="u">{{ u }}</option>
-        </select>
-      </div>
-
-      <div class="scale-row">
-        <label class="field-label">スケール</label>
-        <span class="scale-value"
-          >{{ (moldStore.modelScale * 100).toFixed(1) }}% ({{
-            moldStore.modelScale.toFixed(3)
-          }}x)</span
+        <span v-if="moldStore.fileName" class="file-name">{{
+          moldStore.fileName
+        }}</span>
+        <span v-else class="placeholder"
+          >STL ファイルをドロップ<br />または クリックして選択</span
         >
       </div>
 
-      <div v-if="bboxDisplay" class="bbox-display">
-        <span class="bbox-label">サイズ (mm)</span>
-        <div class="bbox-inputs">
-          <div class="input-group">
-            <label>X</label>
-            <input
-              type="number"
-              step="any"
-              :value="bboxDisplay.x"
-              @change="(e) => updateScaleFromAxis('x', e)"
-              @keyup.enter="(e) => updateScaleFromAxis('x', e)"
-            />
-          </div>
-          <div class="input-group">
-            <label>Y</label>
-            <input
-              type="number"
-              step="any"
-              :value="bboxDisplay.y"
-              @change="(e) => updateScaleFromAxis('y', e)"
-              @keyup.enter="(e) => updateScaleFromAxis('y', e)"
-            />
-          </div>
-          <div class="input-group">
-            <label>Z</label>
-            <input
-              type="number"
-              step="any"
-              :value="bboxDisplay.z"
-              @change="(e) => updateScaleFromAxis('z', e)"
-              @keyup.enter="(e) => updateScaleFromAxis('z', e)"
-            />
-          </div>
+      <div v-if="!moldStore.fileName" class="sample">
+        <button type="button" @click="loadSample">
+          代わりにサンプルモデルを使う
+        </button>
+      </div>
+
+      <!-- Hidden native file input -->
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept=".stl"
+        style="display: none"
+        @change="onFileInputChange"
+      />
+    </div>
+
+    <!-- Unit selector + Scale and size editors. Disabled (not hidden) until a
+         model is loaded, so the onboarding guide has a real element to point
+         at even before the first import. -->
+    <div class="unit-row">
+      <label for="unit-select" class="field-label">モデル単位</label>
+      <select
+        id="unit-select"
+        v-model="moldStore.unit"
+        :disabled="!hasModel"
+        @change="onUnitChange"
+      >
+        <option v-for="u in UNIT_OPTIONS" :key="u" :value="u">{{ u }}</option>
+      </select>
+    </div>
+
+    <div class="scale-row">
+      <label class="field-label">スケール</label>
+      <span class="scale-value">{{
+        hasModel
+          ? `${(moldStore.modelScale * 100).toFixed(1)}% (${moldStore.modelScale.toFixed(3)}x)`
+          : "-"
+      }}</span>
+    </div>
+
+    <div class="bbox-display" data-onboarding="size">
+      <span class="bbox-label">サイズ (mm)</span>
+      <div class="bbox-inputs">
+        <div class="input-group">
+          <label>X</label>
+          <input
+            type="number"
+            step="any"
+            :value="bboxDisplay?.x ?? ''"
+            :disabled="!hasModel"
+            @change="(e) => updateScaleFromAxis('x', e)"
+            @keyup.enter="(e) => updateScaleFromAxis('x', e)"
+          />
+        </div>
+        <div class="input-group">
+          <label>Y</label>
+          <input
+            type="number"
+            step="any"
+            :value="bboxDisplay?.y ?? ''"
+            :disabled="!hasModel"
+            @change="(e) => updateScaleFromAxis('y', e)"
+            @keyup.enter="(e) => updateScaleFromAxis('y', e)"
+          />
+        </div>
+        <div class="input-group">
+          <label>Z</label>
+          <input
+            type="number"
+            step="any"
+            :value="bboxDisplay?.z ?? ''"
+            :disabled="!hasModel"
+            @change="(e) => updateScaleFromAxis('z', e)"
+            @keyup.enter="(e) => updateScaleFromAxis('z', e)"
+          />
         </div>
       </div>
-    </template>
+    </div>
   </section>
 </template>
 
 <style scoped>
 .file-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-controls {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -357,6 +377,12 @@ function updateScaleFromAxis(axis: "x" | "y" | "z", event: Event): void {
 .bbox-inputs {
   display: flex;
   gap: 8px;
+}
+
+.unit-row select:disabled,
+.input-group input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .input-group {

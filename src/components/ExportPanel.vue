@@ -66,7 +66,7 @@ function downloadLower(): void {
 </script>
 
 <template>
-  <section class="export-panel">
+  <section class="export-panel" data-onboarding="export">
     <h2>エクスポート</h2>
 
     <!-- Progress bar (visible while generating) -->
@@ -88,18 +88,20 @@ function downloadLower(): void {
       パラメーターが変更されました。再生成してからダウンロードしてください。
     </p>
 
-    <!-- Download buttons (shown only when pieces are ready and not stale) -->
-    <div v-if="hasPieces" class="download-row">
+    <!-- Download buttons. Disabled (not hidden) until pieces are ready, so
+         the onboarding guide has a real element to point at even before the
+         first generation. -->
+    <div class="download-row">
       <button
         class="download-btn upper"
-        :disabled="moldStore.isDirty || isGenerating"
+        :disabled="!hasPieces || moldStore.isDirty || isGenerating"
         @click="downloadUpper"
       >
         ↓ 上半分 STL
       </button>
       <button
         class="download-btn lower"
-        :disabled="moldStore.isDirty || isGenerating"
+        :disabled="!hasPieces || moldStore.isDirty || isGenerating"
         @click="downloadLower"
       >
         ↓ 下半分 STL
@@ -107,7 +109,7 @@ function downloadLower(): void {
     </div>
 
     <!-- Placeholder when no pieces exist yet -->
-    <p v-else-if="!isGenerating" class="hint-msg">
+    <p v-if="!hasPieces && !isGenerating" class="hint-msg">
       形状を生成するとここからダウンロードできます。
     </p>
   </section>

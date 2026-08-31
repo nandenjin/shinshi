@@ -7,7 +7,7 @@ const showGizmo = defineModel<boolean>("showGizmo", { default: true });
 <template>
   <div class="viewport-overlay">
     <!-- Display options -->
-    <label class="toggle-row">
+    <label class="toggle-row" data-onboarding="section-mode">
       <input v-model="moldStore.showSection" type="checkbox" />
       <span class="label">断面を表示</span>
     </label>
@@ -26,7 +26,7 @@ const showGizmo = defineModel<boolean>("showGizmo", { default: true });
 
     <!-- Gizmo mode (Blender-style: move / rotate) -->
     <template v-if="showGizmo">
-      <div class="mode-buttons">
+      <div class="mode-buttons" data-onboarding="gizmo-mode">
         <button
           type="button"
           class="mode-btn"

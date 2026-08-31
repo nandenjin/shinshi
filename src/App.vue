@@ -2,6 +2,7 @@
 import { ref, onUnmounted } from "vue";
 import ViewportCanvas from "./components/ViewportCanvas.vue";
 import ControlPane from "./components/ControlPane.vue";
+import OnboardingGuide from "./components/OnboardingGuide.vue";
 import { terminateWorker } from "./composables/useMoldWorker.ts";
 
 /** Shared gizmo-visibility state passed between the viewport and the control pane. */
@@ -15,6 +16,7 @@ onUnmounted(terminateWorker);
   <div class="app-layout">
     <ViewportCanvas v-model:show-gizmo="showGizmo" />
     <ControlPane />
+    <OnboardingGuide />
   </div>
 </template>
 

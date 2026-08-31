@@ -41,7 +41,7 @@ const thicknessInModelUnits = computed(() =>
 </script>
 
 <template>
-  <section class="thickness-control">
+  <section class="thickness-control" data-onboarding="thickness">
     <h2>殻の生成パラメーター</h2>
 
     <div class="field">
