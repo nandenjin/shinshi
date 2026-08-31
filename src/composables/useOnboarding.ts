@@ -85,10 +85,21 @@ export function nextStep(): void {
   onboardingStore.stepIndex++;
 }
 
+/** Goes back to the previous step. No-op on the first step. */
+export function previousStep(): void {
+  if (onboardingStore.stepIndex <= 0) return;
+  onboardingStore.stepIndex--;
+}
+
 /** Closes the guide and remembers that it has been seen. */
 export function finishGuide(): void {
   onboardingStore.active = false;
   markSeen();
+}
+
+/** Cancels the guide partway through. Same effect as finishing it. */
+export function cancelGuide(): void {
+  finishGuide();
 }
 
 /** Starts the guide automatically on first run only. */

@@ -5,6 +5,8 @@ import {
   onboardingStore,
   maybeStartFirstRun,
   nextStep,
+  previousStep,
+  cancelGuide,
 } from "../composables/useOnboarding.ts";
 
 const MARGIN = 12;
@@ -227,26 +229,39 @@ onBeforeUnmount(stopLoop);
         <p class="body-text">
           {{ ONBOARDING_STEPS[onboardingStore.stepIndex]?.body }}
         </p>
+        <div class="progress">
+          <span
+            v-for="(_, i) in ONBOARDING_STEPS"
+            :key="i"
+            class="dot"
+            :class="{ current: i === onboardingStore.stepIndex }"
+          />
+          <span class="counter"
+            >{{ onboardingStore.stepIndex + 1 }} /
+            {{ ONBOARDING_STEPS.length }}</span
+          >
+        </div>
         <div class="footer-row">
-          <div class="progress">
-            <span
-              v-for="(_, i) in ONBOARDING_STEPS"
-              :key="i"
-              class="dot"
-              :class="{ current: i === onboardingStore.stepIndex }"
-            />
-            <span class="counter"
-              >{{ onboardingStore.stepIndex + 1 }} /
-              {{ ONBOARDING_STEPS.length }}</span
-            >
-          </div>
-          <button type="button" class="next-btn" @click="nextStep">
-            {{
-              onboardingStore.stepIndex === ONBOARDING_STEPS.length - 1
-                ? "終了"
-                : "次へ"
-            }}
+          <button type="button" class="cancel-btn" @click="cancelGuide">
+            中止
           </button>
+          <div class="nav-buttons">
+            <button
+              v-if="onboardingStore.stepIndex > 0"
+              type="button"
+              class="prev-btn"
+              @click="previousStep"
+            >
+              戻る
+            </button>
+            <button type="button" class="next-btn" @click="nextStep">
+              {{
+                onboardingStore.stepIndex === ONBOARDING_STEPS.length - 1
+                  ? "終了"
+                  : "次へ"
+              }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -307,17 +322,11 @@ onBeforeUnmount(stopLoop);
   color: var(--color-text);
 }
 
-.footer-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .progress {
   display: flex;
   align-items: center;
   gap: 4px;
+  margin-bottom: 10px;
 }
 
 .dot {
@@ -337,6 +346,35 @@ onBeforeUnmount(stopLoop);
   color: var(--color-label);
 }
 
+.footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.cancel-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-muted);
+  font-size: 0.76rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+
+.cancel-btn:hover {
+  color: var(--color-text);
+}
+
+.prev-btn,
 .next-btn {
   background: var(--color-input-bg);
   border: 1px solid var(--color-border);
@@ -348,6 +386,10 @@ onBeforeUnmount(stopLoop);
   transition:
     border-color 0.15s,
     color 0.15s;
+}
+
+.prev-btn:hover {
+  border-color: var(--color-label);
 }
 
 .next-btn:hover {
