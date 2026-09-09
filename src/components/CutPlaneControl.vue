@@ -73,12 +73,6 @@ watch(
         />
       </div>
     </fieldset>
-
-    <!-- Normal: set graphically via the viewport gizmo -->
-    <p class="hint">
-      法線はビューポートのギズモをクリックして選択し、回転モード（R
-      キーまたはツール切り替え）でドラッグして指定します。
-    </p>
   </section>
 </template>
 
@@ -126,12 +120,5 @@ watch(
   font-size: 0.75rem;
   color: var(--color-label);
   text-align: right;
-}
-
-.hint {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--color-label);
-  line-height: 1.5;
 }
 </style>
