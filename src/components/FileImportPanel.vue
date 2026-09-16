@@ -57,6 +57,7 @@ function onDrop(event: DragEvent): void {
 async function loadSample(): Promise<void> {
   moldStore.status = "loading";
   moldStore.errorMessage = "";
+  moldStore.loadError = null;
   try {
     const { geometry, fileName, size } = await loadModelFromUrl(
       teapotUrl,
@@ -87,6 +88,7 @@ async function processFile(file: File): Promise<void> {
 
   moldStore.status = "loading";
   moldStore.errorMessage = "";
+  moldStore.loadError = null;
 
   try {
     const { geometry, fileName, size } = await loadModelFromFile(file);

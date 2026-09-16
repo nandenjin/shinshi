@@ -68,6 +68,17 @@ function handleWorkerMessage(event: MessageEvent<WorkerResponse>): void {
       moldStore.status = "error";
       moldStore.errorMessage = msg.message;
       break;
+
+    case "nonManifold":
+      moldStore.loadError = {
+        kind: "non-manifold",
+        status: msg.status,
+        message: msg.message,
+      };
+      moldStore.status = "error";
+      moldStore.progress = 0;
+      moldStore.progressLabel = "";
+      break;
   }
 }
 

@@ -57,6 +57,11 @@ body,
   --color-input-bg: #1e1e2e;
 }
 
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
 /* Hide spinner of number inputs */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {

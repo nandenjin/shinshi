@@ -83,6 +83,54 @@ function buildManifold(
 }
 
 /**
+ * Result of {@link checkManifold}.
+ */
+export interface ManifoldCheckResult {
+  isManifold: boolean;
+  /** manifold-3d's ErrorStatus (e.g. "NotManifold"); "NoError" on success. */
+  status: string;
+  /** ManifoldError.message (e.g. "Not manifold"); empty string on success. */
+  message: string;
+}
+
+/**
+ * Check whether `geo` is accepted as a valid 2-manifold by Manifold itself,
+ * without keeping the resulting Manifold around.
+ *
+ * Reversing all triangle winding (as `buildShell`'s inner wall does) and
+ * remapping vertex indices into a compact range (as `cutByPlane`'s group
+ * extraction does) both preserve 2-manifoldness, so checking the un-flipped
+ * welded source geometry correctly predicts whether the shell pipeline will
+ * later be rejected by Manifold.
+ *
+ * Does not call {@link toManifold}: a validity check has no use for its
+ * volume-based winding retry, which would construct the Manifold twice.
+ *
+ * @param wasm  Initialised ManifoldToplevel instance from `Module()`.
+ * @param geo   Indexed, welded BufferGeometry to check.
+ */
+export function checkManifold(
+  wasm: ManifoldToplevel,
+  geo: BufferGeometry,
+): ManifoldCheckResult {
+  const posArr = geo.getAttribute("position").array as Float32Array;
+  const idxArr = geo.getIndex()!.array as Uint32Array;
+
+  try {
+    const m = buildManifold(wasm, posArr, idxArr);
+    m.delete();
+    return { isManifold: true, status: "NoError", message: "" };
+  } catch (err) {
+    const code = (err as { code?: unknown }).code;
+    return {
+      isManifold: false,
+      status: typeof code === "string" ? code : "Unknown",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
  * Convert a Manifold object back to a THREE BufferGeometry.
  *
  * The returned geometry is indexed with outward-facing smooth vertex normals

@@ -96,6 +96,13 @@ export const moldStore = reactive({
   /** Error message; only set when status === 'error'. */
   errorMessage: "" as string,
 
+  /** Non-null when the loaded source mesh failed Manifold's validity check. */
+  loadError: null as {
+    kind: "non-manifold";
+    status: string;
+    message: string;
+  } | null,
+
   // -------------------------------------------------------------------------
   // Regeneration behaviour
   // -------------------------------------------------------------------------

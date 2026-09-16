@@ -79,7 +79,10 @@ function downloadLower(): void {
     </div>
 
     <!-- Error message -->
-    <p v-if="moldStore.status === 'error'" class="error-msg">
+    <p
+      v-if="moldStore.status === 'error' && moldStore.errorMessage"
+      class="error-msg"
+    >
       {{ moldStore.errorMessage }}
     </p>
 

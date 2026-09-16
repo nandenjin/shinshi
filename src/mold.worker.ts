@@ -17,7 +17,10 @@ import ManifoldModule from "manifold-3d";
 import wasmUrl from "manifold-3d/manifold.wasm?url";
 import { buildShell } from "./geometry/buildShell.ts";
 import { cutByPlane } from "./geometry/cutByPlane.ts";
-import type { ManifoldToplevel } from "./geometry/manifoldConvert.ts";
+import {
+  checkManifold,
+  type ManifoldToplevel,
+} from "./geometry/manifoldConvert.ts";
 import type {
   WorkerRequest,
   WorkerResponse,
@@ -55,6 +58,14 @@ let _lastPlane: CutPlaneSpec | null = null;
 
 /** Most recently received mold parameters (thickness). */
 let _lastParams: MoldParams | null = null;
+
+/**
+ * Set once `setModel` finds the source mesh fails Manifold's validity check.
+ * Short-circuits `generateShell` / `applyCut` too, so that later param or
+ * plane changes don't silently re-trigger the heavy SDF pipeline only to
+ * fail again deep inside `cutByPlane`.
+ */
+let _nonManifoldResult: { status: string; message: string } | null = null;
 
 // ---------------------------------------------------------------------------
 // Message handler — messages are processed sequentially, WASM-ready-first
@@ -98,6 +109,14 @@ function handleMessage(req: WorkerRequest): void {
         _lastPlane = req.plane;
         _cachedShell = null;
 
+        const check = checkManifold(_wasm!, geo);
+        if (!check.isManifold) {
+          _nonManifoldResult = { status: check.status, message: check.message };
+          sendNonManifold();
+          return;
+        }
+        _nonManifoldResult = null;
+
         generateAndCutShell(req.params.thickness, _lastPlane);
         break;
       }
@@ -110,13 +129,19 @@ function handleMessage(req: WorkerRequest): void {
         _lastParams = req.params;
         _lastPlane = req.plane;
         _cachedShell = null;
+        if (_nonManifoldResult) {
+          sendNonManifold();
+          return;
+        }
         generateAndCutShell(req.params.thickness, _lastPlane);
         break;
       }
 
       case "applyCut": {
         _lastPlane = req.plane;
-        if (_cachedShell) {
+        if (_nonManifoldResult) {
+          sendNonManifold();
+        } else if (_cachedShell) {
           sendProgress(0.9, "Cutting shell…");
           const pieces = cutByPlane(_cachedShell, req.plane, _wasm!);
           sendPieces(pieces.upper, pieces.lower);
@@ -176,6 +201,15 @@ function sendProgress(value: number, label: string): void {
 
 function sendError(message: string): void {
   const msg: WorkerResponse = { type: "error", message };
+  self.postMessage(msg);
+}
+
+function sendNonManifold(): void {
+  const msg: WorkerResponse = {
+    type: "nonManifold",
+    status: _nonManifoldResult!.status,
+    message: _nonManifoldResult!.message,
+  };
   self.postMessage(msg);
 }
 

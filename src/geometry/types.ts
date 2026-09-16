@@ -114,6 +114,14 @@ export type WorkerResponse =
   | {
       type: "error";
       message: string;
+    }
+  | {
+      type: "nonManifold";
+      /** manifold-3d's ErrorStatus (e.g. "NotManifold"), as a plain string
+       *  so this protocol file doesn't need to import WASM-package types. */
+      status: string;
+      /** ManifoldError.message (e.g. "Not manifold"). */
+      message: string;
     };
 
 /** Three.js Vector3 as a plain object, safe to serialise to/from a Worker. */

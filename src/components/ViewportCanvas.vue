@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useThreeViewport } from "../composables/useThreeViewport.ts";
 import { startGuide } from "../composables/useOnboarding.ts";
 import ViewportOverlay from "./ViewportOverlay.vue";
+import ViewportErrorModal from "./ViewportErrorModal.vue";
 
 const showGizmo = defineModel<boolean>("showGizmo", { default: true });
 
@@ -20,6 +21,7 @@ useThreeViewport(canvasRef, showGizmo);
     <button type="button" class="guide-btn" @click="startGuide">
       ? 使い方ガイド
     </button>
+    <ViewportErrorModal />
   </div>
 </template>
 
