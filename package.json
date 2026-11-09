@@ -23,7 +23,7 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "26.6.6",
-    "@types/three": "0.186.0",
+    "@types/three": "0.187.0",
     "@vitejs/plugin-vue": "6.0.10",
     "eslint": "10.14.0",
     "eslint-config-prettier": "10.1.8",
@@ -52,7 +52,7 @@
   "private": true,
   "dependencies": {
     "manifold-3d": "3.5.4",
-    "three": "0.186.1",
+    "three": "0.187.0",
     "three-bvh-csg": "0.0.18",
     "three-mesh-bvh": "0.9.17",
     "vue": "3.5.44"
